@@ -66,8 +66,8 @@ mode = 2
 flag = 0 
 line = ''
 line_num = 0 
-patrol_angle_x = 0 
-patrol_angle_y = 0
+now_angle_x = 90 
+now_angle_y = 0
 
 @smart_inference_mode()
 def runn(
@@ -99,7 +99,11 @@ def runn(
         dnn=False,  # use OpenCV DNN for ONNX inference
         vid_stride=1,  # video frame-rate stride
 ):
-    global motor_angle_x , motor_angle_y, count, flag, mode ,angle_x, angle_y,line,line_num,patrol_angle_x,patrol_angle_y
+    global motor_angle_x , motor_angle_y, count, flag, mode ,angle_x, angle_y,line,line_num,now_angle_x,now_angle_y
+
+    motor.move (3,90)
+    motor.move (4,0) # 초기 정렬
+
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
     is_file = Path(source).suffix[1:] in (IMG_FORMATS + VID_FORMATS)
@@ -180,8 +184,11 @@ def runn(
                     circle = cv2.circle(im0, center_point, 5, (0,255,0), 2)
                     text_coord = cv2.putText(im0, str(center_point), center_point, cv2.FONT_HERSHEY_PLAIN, 2, (0,0,255))
 
-                    center_x = abs(center_point[0])
-                    center_y = abs(center_point[1]-480)
+
+                    
+                     
+                    center_x = center_point[0]
+                    center_y = -(center_point[1]-480)
 
 
                     motor_angle_x = motor.normalize_0_to_180_x(center_x)
@@ -189,40 +196,59 @@ def runn(
 
                     if (mode == 0) :
                         print('Turning  . . . . .')  
+                    ###############################################################################################################
 
                     if (mode==1):
-                        print('mode 1 : Auto Mode')
-                        motor.move(1,motor_angle_x)
-                        motor.move(2,motor_angle_y)
+                        print('mode 1 : Tracking Mode')
+                        motor.move(1,now_angle_x + motor_angle_x)
+                        motor.move(2,now_angle_y + motor_angle_y)
 
+                        now_angle_x = now_angle_x + motor_angle_x
+                        now_angle_y = now_angle_y + motor_angle_y
+
+                    if (mode == 1 and (abs(center_x-320)<5 and abs(center_y-240)<5)) :
+                        time.sleep(5)
+                        motor.move(1,0)
+                        motor.move(2,0)
+                        
+                        now_angle_x = 0
+                        now_angle_y = 0
+
+                        mode = 4    
+                    ###############################################################################################################
                     if (mode==2):
                         print('mode 2 : Patrol Mode')
+
+                    if (mode == 2 and (abs(center_x-320)<5 and abs(center_y-240)<5)) :
+                        name = 'ship'
+                        print('detected')
+                        f=open('log.txt','w')
+                        msg = [str(datetime.datetime.now()),': [',str(name),'] is detected... Location : X = ',str(now_angle_x),', Y = ',str(now_angle_y),'\n']
+                        msg = ''.join(msg)
+                        f.write(msg)
+                        f.close 
+                    ###############################################################################################################
                     if (mode==3):
                         print('mode 3 : Control Mode')    
+
+                    ###############################################################################################################
+                    #     
+                    if (mode==4) :
+                        print ('Idle State')    
 
                     
 
                     # if (mode == 1 and (abs(center_x-320)>5 or abs(center_y-240)>5)) :
                     #     motor.move(1,motor_angle_x)
                     #     motor.move(2,motor_angle_y)
-                    # elif (mode == 1 and (abs(center_x-320)<5 and abs(center_y-240)<5)) :
-                    #     time.sleep(5)
-                    #     motor.move(1,0)
-                    #     motor.move(2,0)
 
 
-                    if (mode == 2 and (abs(center_x-320)<5 and abs(center_y-240)<5)) :
-                        name = 'ship'
-                        print('detected')
-                        f=open('log.txt','w')
-                        msg = [str(datetime.datetime.now()),': [',str(name),'] is detected... Location : X = ',str(patrol_angle_x),', Y = ',str(patrol_angle_y),'\n']
-                        msg = ''.join(msg)
-                        f.write(msg)
-                        f.close  
+
+         
 
 
                     
-   
+	
 
                     
 
@@ -351,8 +377,13 @@ def gui():
     entry1.grid(row=1,column=1)
     entry2.grid(row=2,column=1)
 
+
+    def mode1():
+        global mode
+        mode=1
+
     def turn() :
-        global mode ,angle_x, angle_y
+        global mode ,angle_x, angle_y, now_angle_x, now_angle_y
         mode=0 # 수동으로 각도 회전 중일 경우 ! 
         angle_x = int(entry1.get())
         angle_y = int(entry2.get())
@@ -360,37 +391,40 @@ def gui():
         motor.move(4,angle_x)
         motor.move(3,angle_y)
 
+        now_angle_x = angle_x
+        now_angle_y = angle_y
+
         mode=1 
 
     def patrol() :
-        global mode, line, line_num, patrol_angle_x,patrol_angle_y
+        global mode, line, line_num, now_angle_x, now_angle_y
         mode=2
         for i in range (180):
-            patrol_angle_x = i
-            patrol_angle_y = 0
+            now_angle_x = i
+            now_angle_y = 0
             motor.move(4,0)
             motor.move(3,i)
             time.sleep(0.05)
         for i in range (180,1,-1) :
-            patrol_angle_x = i
-            patrol_angle_y = 10
+            now_angle_x = i
+            now_angle_y = 10
             motor.move(4,10)
             motor.move(3,i)
             time.sleep(0.05)
         for i in range (180):
-            patrol_angle_x = i
-            patrol_angle_y = 20
+            now_angle_x = i
+            now_angle_y = 20
             motor.move(4,20)
             motor.move(3,i)
             time.sleep(0.05)
         for i in range (180,1,-1):
-            patrol_angle_x = i
-            patrol_angle_y = 30
+            now_angle_x = i
+            now_angle_y = 30
             motor.move(4,30)
             motor.move(3,i)
             time.sleep(0.05)
 
-        time.sleep(2)
+        time.sleep(4)
 
         f = open('log.txt','r') # Detect결과 저장된 txt파일 읽어오기 
         line = f.read()
@@ -411,9 +445,14 @@ def gui():
         motor.move(3,0)
         motor.move(4,0) # 제자리 정렬 
 
+        now_angle_x = 0
+        now_angle_y = 0
+
+        mode=4 
+
     button1 = Button(tk,text='Enter',bg='black',fg='white',width=20,command=turn).grid(row=1,column=2,rowspan=2,sticky=NS)
     button2 = Button(tk,text='Patrol',bg='black',fg='white',width=20,command=patrol).grid(row=4,column=0,rowspan=2,sticky=S)
-    button3 = Button(tk,text='Auto',bg='black',fg='white',width=20,command=turn).grid(row=4,column=1,rowspan=2,sticky=S)
+    button3 = Button(tk,text='Tracking',bg='black',fg='white',width=20,command=mode1).grid(row=4,column=1,rowspan=2,sticky=S)
     button4 = Button(tk,text='Control',bg='black',fg='white',width=20,command=turn).grid(row=4,column=2,rowspan=2,sticky=S)
 
 
@@ -425,11 +464,11 @@ def gui():
 
 
 def main(opt):
-    global motor_angle_x , motor_angle_y, mode   ,user_input_x, user_input_y, flag
+    global motor_angle_x , motor_angle_y, mode	,user_input_x, user_input_y, flag
     # print("******************** Mode Type ********************\n")
     # print("For AutoMode   : Type 1 \n")
     # print("For Patrol Mode : Type 2 \n")
-   
+	
     # mode = int(input("Select Mode : "))    
    
     check_requirements(exclude=('tensorboard', 'thop'))
@@ -449,3 +488,4 @@ if __name__ == "__main__":
 
     t0 = Thread(target=runn(**vars(opt)))
     t0.start()
+
