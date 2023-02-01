@@ -28,6 +28,7 @@ Usage - formats:
                                  yolov5s_edgetpu.tflite     # TensorFlow Edge TPU
                                  yolov5s_paddle_model       # PaddlePaddle
 """
+import datetime
 from tkinter import *
 from multiprocessing import Process
 from threading import Thread
@@ -40,6 +41,7 @@ import sys
 from pathlib import Path
 import torch
 import motor
+import os 
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
@@ -62,6 +64,10 @@ user_input_x = 0
 user_input_y = 0
 mode = 2 
 flag = 0 
+line = ''
+line_num = 0 
+patrol_angle_x = 0 
+patrol_angle_y = 0
 
 @smart_inference_mode()
 def runn(
@@ -93,7 +99,7 @@ def runn(
         dnn=False,  # use OpenCV DNN for ONNX inference
         vid_stride=1,  # video frame-rate stride
 ):
-    global motor_angle_x , motor_angle_y, count, flag, mode ,angle_x, angle_y
+    global motor_angle_x , motor_angle_y, count, flag, mode ,angle_x, angle_y,line,line_num,patrol_angle_x,patrol_angle_y
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
     is_file = Path(source).suffix[1:] in (IMG_FORMATS + VID_FORMATS)
@@ -174,32 +180,49 @@ def runn(
                     circle = cv2.circle(im0, center_point, 5, (0,255,0), 2)
                     text_coord = cv2.putText(im0, str(center_point), center_point, cv2.FONT_HERSHEY_PLAIN, 2, (0,0,255))
 
-                    motor_angle_x = motor.normalize_0_to_180_x(center_point[0])
-                    motor_angle_y = motor.normalize_0_to_180_y(center_point[1])
+                    center_x = abs(center_point[0])
+                    center_y = abs(center_point[1]-480)
 
+
+                    motor_angle_x = motor.normalize_0_to_180_x(center_x)
+                    motor_angle_y = motor.normalize_0_to_180_y(center_y)
+
+                    if (mode == 0) :
+                        print('Turning  . . . . .')  
 
                     if (mode==1):
-                        print('mode 1')
-                    if (mode==2):
-                        print('mode 2')
-
-
-
-                    if (mode == 1 and (abs(center_point[0]-320)>5 or abs(center_point[1]-240)>5)) :
+                        print('mode 1 : Auto Mode')
                         motor.move(1,motor_angle_x)
                         motor.move(2,motor_angle_y)
-                    elif (mode == 1 and (abs(center_point[0]-320)<5 and abs(center_point[1]-240)<5)) :
-                        time.sleep(5)
-                        motor.move(1,0)
-                        motor.move(2,0)
+
+                    if (mode==2):
+                        print('mode 2 : Patrol Mode')
+                    if (mode==3):
+                        print('mode 3 : Control Mode')    
+
+                    
+
+                    # if (mode == 1 and (abs(center_x-320)>5 or abs(center_y-240)>5)) :
+                    #     motor.move(1,motor_angle_x)
+                    #     motor.move(2,motor_angle_y)
+                    # elif (mode == 1 and (abs(center_x-320)<5 and abs(center_y-240)<5)) :
+                    #     time.sleep(5)
+                    #     motor.move(1,0)
+                    #     motor.move(2,0)
 
 
-                    if (mode == 2 and (abs(center_point[0]-320)<5 and abs(center_point[1]-240)<5)) :
-                       print('detected')
+                    if (mode == 2 and (abs(center_x-320)<5 and abs(center_y-240)<5)) :
+                        name = 'ship'
+                        print('detected')
+                        f=open('log.txt','w')
+                        msg = [str(datetime.datetime.now()),': [',str(name),'] is detected... Location : X = ',str(patrol_angle_x),', Y = ',str(patrol_angle_y),'\n']
+                        msg = ''.join(msg)
+                        f.write(msg)
+                        f.close  
 
 
                     
-	
+   
 
                     
 
@@ -264,19 +287,7 @@ def runn(
     if update:
         strip_optimizer(weights[0])  # update model (to fix SourceChangeWarning)
     
-    # print(count)
 
-    # if (count == 20) :
-    #     manual_angle_x = int(input("X_Angle = "))
-    #     manual_angle_y = int(input("Y_Angle = "))
-
-    #     motor.move(1,manual_angle_x)
-    #     motor.move(2,manual_angle_y)  
-
-    # elif (count == 40) :
-    #     motor.move(1,90)
-    #     motor.move(2,0)
-    #     count = 0     
     
     
 
@@ -316,82 +327,110 @@ def parse_opt():
     print_args(vars(opt))
     return opt
 
-def Auto_detect():
-    global motor_angle_x , motor_angle_y, flag
 
-    while True :
-        motor.move(1,motor_angle_x)
-        motor.move(2,motor_angle_y)  
-        if flag== 3 : break
-
-def Manual_mode(user_input_x,user_input_y):
-    user_input_x = int(raw_input("X_Angle = "))
-    user_input_y = int(raw_input("Y_Angle = "))
-
-
-
-
-def patrol() :
-    global mode 
-    mode=2
-    for i in range (180):
-        motor.move(4,0)
-        motor.move(3,i)
-        time.sleep(0.05)
-    for i in range (180,1,-1) :
-        motor.move(4,10)
-        motor.move(3,i)
-        time.sleep(0.05)
-    for i in range (180):
-        motor.move(4,20)
-        motor.move(3,i)
-        time.sleep(0.05)
-    for i in range (180,1,-1):
-        motor.move(4,30)
-        motor.move(3,i)
-        time.sleep(0.05)
 
 def gui():
-    global mode, angle_x, angle_y
+    global mode, angle_x, angle_y, line, line_num
     tk = Tk()
 
     tk.title ('Motor Control')
-    tk.geometry("800x760")  
+    #tk.geometry("800x760")  
+    label0 = Label(tk,text='----------------------------------------[[Set Angle]]------------------------------------').grid(row=0,column=0,columnspan=3,sticky=EW)
+    label1 = Label(tk,text='x_angle').grid(row=1,column=0)
+    label2 = Label(tk,text='y_angle').grid(row=2,column=0)
+    label3 = Label(tk,text='-------------------------------------[[Mode Selection]]---------------------------------').grid(row=3,column=0,columnspan=3,sticky=EW)
+    
+    label6 = Label(tk,text='').grid(row=8,column=0,columnspan=3,sticky=EW)
+    label4 = Label(tk,text='Nvidia Jetson Nano 4GB Development Kit (JetPack 4.6)').grid(row=9,column=0,columnspan=3,sticky=EW)
+    label5 = Label(tk,text='CUDA 10.2  / OpenCV 4.5.3 with CUDA / PyTorch 1.8.0 with CUDA / Torchvision 0.9.0').grid(row=10,column=0,columnspan=3,sticky=EW)
 
-    label1 = Label(tk,text='x_angle').grid(row=0,column=0)
-    label2 = Label(tk,text='y_angle').grid(row=1,column=0)
-
+    
     entry1 = Entry(tk)
     entry2 = Entry(tk)
 
-    entry1.grid(row=0,column=1)
-    entry2.grid(row=1,column=1)
+    entry1.grid(row=1,column=1)
+    entry2.grid(row=2,column=1)
 
     def turn() :
         global mode ,angle_x, angle_y
-        mode=1
+        mode=0 # 수동으로 각도 회전 중일 경우 ! 
         angle_x = int(entry1.get())
         angle_y = int(entry2.get())
 
         motor.move(4,angle_x)
         motor.move(3,angle_y)
 
-    button1 = Button(tk,text='Enter',bg='black',fg='white',command=turn).grid(row=0,column=3)
-    button2 = Button(tk,text='Patrol',bg='black',fg='white',command=patrol).grid(row=4,column=1)
-    button3 = Button(tk,text='Auto',bg='black',fg='white',command=turn).grid(row=4,column=2)
+        mode=1 
+
+    def patrol() :
+        global mode, line, line_num, patrol_angle_x,patrol_angle_y
+        mode=2
+        for i in range (180):
+            patrol_angle_x = i
+            patrol_angle_y = 0
+            motor.move(4,0)
+            motor.move(3,i)
+            time.sleep(0.05)
+        for i in range (180,1,-1) :
+            patrol_angle_x = i
+            patrol_angle_y = 10
+            motor.move(4,10)
+            motor.move(3,i)
+            time.sleep(0.05)
+        for i in range (180):
+            patrol_angle_x = i
+            patrol_angle_y = 20
+            motor.move(4,20)
+            motor.move(3,i)
+            time.sleep(0.05)
+        for i in range (180,1,-1):
+            patrol_angle_x = i
+            patrol_angle_y = 30
+            motor.move(4,30)
+            motor.move(3,i)
+            time.sleep(0.05)
+
+        time.sleep(2)
+
+        f = open('log.txt','r') # Detect결과 저장된 txt파일 읽어오기 
+        line = f.read()
+        f.close()     
+
+
+        root = Tk()
+        widget = Text(root)
+        scrollbar = Scrollbar(root)
+        scrollbar.pack(side=RIGHT, fill=Y)
+        widget.pack(side=LEFT, fill=Y)
+        scrollbar.config(command=widget.yview)
+        widget.config(yscrollcommand=scrollbar.set)
+        widget.insert(END, line)
+
+        os.remove('log.txt')
+
+        motor.move(3,0)
+        motor.move(4,0) # 제자리 정렬 
+
+    button1 = Button(tk,text='Enter',bg='black',fg='white',width=20,command=turn).grid(row=1,column=2,rowspan=2,sticky=NS)
+    button2 = Button(tk,text='Patrol',bg='black',fg='white',width=20,command=patrol).grid(row=4,column=0,rowspan=2,sticky=S)
+    button3 = Button(tk,text='Auto',bg='black',fg='white',width=20,command=turn).grid(row=4,column=1,rowspan=2,sticky=S)
+    button4 = Button(tk,text='Control',bg='black',fg='white',width=20,command=turn).grid(row=4,column=2,rowspan=2,sticky=S)
+
 
     tk.mainloop()
 
 
 
 
+
+
 def main(opt):
-    global motor_angle_x , motor_angle_y, mode	,user_input_x, user_input_y, flag
-    print("******************** Mode Type ********************\n")
-    print("For AutoMode   : Type 1 \n")
-    print("For ManualMode : Type 2 \n")
-	
-    mode = int(input("Select Mode : "))    
+    global motor_angle_x , motor_angle_y, mode   ,user_input_x, user_input_y, flag
+    # print("******************** Mode Type ********************\n")
+    # print("For AutoMode   : Type 1 \n")
+    # print("For Patrol Mode : Type 2 \n")
+   
+    # mode = int(input("Select Mode : "))    
    
     check_requirements(exclude=('tensorboard', 'thop'))
     
@@ -410,287 +449,3 @@ if __name__ == "__main__":
 
     t0 = Thread(target=runn(**vars(opt)))
     t0.start()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    t0.daemon=True
-    t0.start()
-    print("start")
-    
-
-
-    t1 = Thread(target = Auto_detect)
-    t1.daemon=True
-    t1.start()
-
-    #flag = 3 
-    #t1.join()
-
-
-   
- 
-    #t0 = Thread(target = runn(**vars(opt)))
-    #t0.daemon=True
-    #t0.start()
-
-#    t2 = Process(target = Manual_mode)
- #   t2.start()
-
-
-
-
-
-
-
-
-
-
-
-    #t2.start()
-    #t2.join()
-
-    #t1.start()
-    #time.sleep(1)
-    #t1.terminate()
-    #motor.move(1,90)
-    #motor.move(2,0)
-
-
-  
-
-  
