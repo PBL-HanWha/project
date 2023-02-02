@@ -102,8 +102,8 @@ def runn(
 ):
     global motor_angle_x, motor_angle_y, count, flag, mode, angle_x, angle_y, line, line_num, now_angle_x, now_angle_y
 
-    motor.move(3, 90)
-    motor.move(4, 0)  # 초기 정렬
+    motor.move(1, 90)
+    motor.move(2, 0)  # 초기 정렬
 
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
@@ -373,8 +373,8 @@ def gui():
         angle_x = int(entry1.get())
         angle_y = int(entry2.get())
 
-        motor.move(4, angle_x)
-        motor.move(3, angle_y)
+        motor.move(1, angle_x)
+        motor.move(2, angle_y)
 
         now_angle_x = angle_x
         now_angle_y = angle_y
@@ -387,26 +387,26 @@ def gui():
         for i in range(180):
             now_angle_x = i
             now_angle_y = 0
-            motor.move(4, 0)
-            motor.move(3, i)
+            motor.move(2, 0)
+            motor.move(1, i)
             time.sleep(0.05)
         for i in range(180, 1, -1):
             now_angle_x = i
             now_angle_y = 10
-            motor.move(4, 10)
-            motor.move(3, i)
+            motor.move(2, 10)
+            motor.move(1, i)
             time.sleep(0.05)
         for i in range(180):
             now_angle_x = i
             now_angle_y = 20
-            motor.move(4, 20)
-            motor.move(3, i)
+            motor.move(2, 20)
+            motor.move(1, i)
             time.sleep(0.05)
         for i in range(180, 1, -1):
             now_angle_x = i
             now_angle_y = 30
-            motor.move(4, 30)
-            motor.move(3, i)
+            motor.move(2, 30)
+            motor.move(1, i)
             time.sleep(0.05)
 
         time.sleep(4)
@@ -426,8 +426,8 @@ def gui():
 
         os.remove('log.txt')
 
-        motor.move(3, 0)
-        motor.move(4, 0)  # 제자리 정렬
+        motor.move(1, 0)
+        motor.move(2, 0)  # 제자리 정렬
 
         now_angle_x = 0
         now_angle_y = 0
