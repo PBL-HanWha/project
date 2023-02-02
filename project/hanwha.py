@@ -41,7 +41,7 @@ import sys
 from pathlib import Path
 import torch
 import motor
-import os 
+import os
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
@@ -56,18 +56,18 @@ from utils.general import (LOGGER, Profile, check_file, check_img_size, check_im
 from utils.plots import Annotator, colors, save_one_box
 from utils.torch_utils import select_device, smart_inference_mode
 
-count = 0 
+count = 0
 motor_angle_x = 90
-motor_angle_y = 0 
-mode = 0
+motor_angle_y = 0
+mode = 1
 user_input_x = 0
 user_input_y = 0
-mode = 2 
-flag = 0 
+flag = 0
 line = ''
-line_num = 0 
-now_angle_x = 90 
+line_num = 0
+now_angle_x = 90
 now_angle_y = 0
+
 
 @smart_inference_mode()
 def runn(
@@ -99,10 +99,10 @@ def runn(
         dnn=False,  # use OpenCV DNN for ONNX inference
         vid_stride=1,  # video frame-rate stride
 ):
-    global motor_angle_x , motor_angle_y, count, flag, mode ,angle_x, angle_y,line,line_num,now_angle_x,now_angle_y
+    global motor_angle_x, motor_angle_y, count, flag, mode, angle_x, angle_y, line, line_num, now_angle_x, now_angle_y
 
-    motor.move (3,90)
-    motor.move (4,0) # 초기 정렬
+    motor.movex(1, 90)
+    motor.movey(2, 0)  # 초기 정렬
 
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
@@ -181,76 +181,77 @@ def runn(
                 for *xyxy, conf, cls in reversed(det):
                     c1, c2 = (int(xyxy[0]), int(xyxy[1])), (int(xyxy[2]), int(xyxy[3]))
                     center_point = round((c1[0] + c2[0]) / 2), round((c1[1] + c2[1]) / 2)
-                    circle = cv2.circle(im0, center_point, 5, (0,255,0), 2)
-                    text_coord = cv2.putText(im0, str(center_point), center_point, cv2.FONT_HERSHEY_PLAIN, 2, (0,0,255))
+                    circle = cv2.circle(im0, center_point, 5, (0, 255, 0), 2)
+                    text_coord = cv2.putText(im0, str(center_point), center_point, cv2.FONT_HERSHEY_PLAIN, 2,
+                                             (0, 0, 255))
 
-
-                    
-                     
                     center_x = center_point[0]
-                    center_y = -(center_point[1]-480)
-
+                    center_y = -(center_point[1] - 480)
+                    
+                    print (center_x)
+                    print (center_y)
 
                     motor_angle_x = motor.normalize_0_to_180_x(center_x)
                     motor_angle_y = motor.normalize_0_to_180_y(center_y)
 
-                    if (mode == 0) :
-                        print('Turning  . . . . .')  
-                    ###############################################################################################################
+                    if (mode == 0):
+                        print('Turning  . . . . .')
+                        ###############################################################################################################
 
-                    if (mode==1):
+                    if (mode == 1):
                         print('mode 1 : Tracking Mode')
-                        motor.move(1,now_angle_x + motor_angle_x)
-                        motor.move(2,now_angle_y + motor_angle_y)
+                        motor.movex(1, now_angle_x - motor_angle_x)
+                        motor.movey(2, now_angle_y + motor_angle_y)
+                        print ('now_angle_x:')
+                        print (now_angle_x)
+                        print ('now_angle_y:')
+                        print (now_angle_y)
 
-                        now_angle_x = now_angle_x + motor_angle_x
+
+                        now_angle_x = now_angle_x - motor_angle_x
                         now_angle_y = now_angle_y + motor_angle_y
 
-                    if (mode == 1 and (abs(center_x-320)<5 and abs(center_y-240)<5)) :
+                    if (mode == 1 and (abs(center_x - 320) < 5 and abs(center_y - 240) < 5)):
                         time.sleep(5)
-                        motor.move(1,0)
-                        motor.move(2,0)
-                        
+                        motor.movex(1, 0)
+                        motor.movey(2, 0)
+
                         now_angle_x = 0
                         now_angle_y = 0
 
-                        mode = 4    
-                    ###############################################################################################################
-                    if (mode==2):
+                        mode = 4
+                        ###############################################################################################################
+                    if (mode == 2):
                         print('mode 2 : Patrol Mode')
 
-                    if (mode == 2 and (abs(center_x-320)<5 and abs(center_y-240)<5)) :
+                    if (mode == 2 and (abs(center_x - 320) < 5 and abs(center_y - 240) < 5)):
                         name = 'ship'
                         print('detected')
-                        f=open('log.txt','w')
-                        msg = [str(datetime.datetime.now()),': [',str(name),'] is detected... Location : X = ',str(now_angle_x),', Y = ',str(now_angle_y),'\n']
+                        f = open('log.txt', 'w')
+                        msg = [str(datetime.datetime.now()), ': [', str(name), '] is detected... Location : X = ',
+                               str(now_angle_x), ', Y = ', str(now_angle_y), '\n']
                         msg = ''.join(msg)
                         f.write(msg)
-                        f.close 
-                    ###############################################################################################################
-                    if (mode==3):
-                        print('mode 3 : Control Mode')    
+                        f.close
+                        ###############################################################################################################
+                    if (mode == 3):
+                        print('mode 3 : Control Mode')
 
-                    ###############################################################################################################
-                    #     
-                    if (mode==4) :
-                        print ('Idle State')    
-
+                        ###############################################################################################################
+                    #
+                    if (mode == 4):
+                        print('Idle State')
                     
-
-                    # if (mode == 1 and (abs(center_x-320)>5 or abs(center_y-240)>5)) :
-                    #     motor.move(1,motor_angle_x)
-                    #     motor.move(2,motor_angle_y)
-
-
-
-         
+                    #print('now_angle_x : ')
+                    #print(now_angle_x)
+                    #print('now_angle_y : ')
+                    #print(now_angle_y)
 
 
-                    
-	
 
-                    
+                        # if (mode == 1 and (abs(center_x-320)>5 or abs(center_y-240)>5)) :
+                    #     motor.movex(1,motor_angle_x)
+                    #     motor.movey(2,motor_angle_y)
 
                 # Print results
                 for c in det[:, 5].unique():
@@ -312,11 +313,6 @@ def runn(
         LOGGER.info(f"Results saved to {colorstr('bold', save_dir)}{s}")
     if update:
         strip_optimizer(weights[0])  # update model (to fix SourceChangeWarning)
-    
-
-    
-    
-
 
 
 def parse_opt():
@@ -354,82 +350,84 @@ def parse_opt():
     return opt
 
 
-
 def gui():
-    global mode, angle_x, angle_y, line, line_num
+    global mode, angle_x, angle_y, line, line_num , now_angle_x , now_angle_y
     tk = Tk()
 
-    tk.title ('Motor Control')
-    #tk.geometry("800x760")  
-    label0 = Label(tk,text='----------------------------------------[[Set Angle]]------------------------------------').grid(row=0,column=0,columnspan=3,sticky=EW)
-    label1 = Label(tk,text='x_angle').grid(row=1,column=0)
-    label2 = Label(tk,text='y_angle').grid(row=2,column=0)
-    label3 = Label(tk,text='-------------------------------------[[Mode Selection]]---------------------------------').grid(row=3,column=0,columnspan=3,sticky=EW)
-    
-    label6 = Label(tk,text='').grid(row=8,column=0,columnspan=3,sticky=EW)
-    label4 = Label(tk,text='Nvidia Jetson Nano 4GB Development Kit (JetPack 4.6)').grid(row=9,column=0,columnspan=3,sticky=EW)
-    label5 = Label(tk,text='CUDA 10.2  / OpenCV 4.5.3 with CUDA / PyTorch 1.8.0 with CUDA / Torchvision 0.9.0').grid(row=10,column=0,columnspan=3,sticky=EW)
+    tk.title('Motor Control')
+    # tk.geometry("800x760")
+    label0 = Label(tk,
+                   text='----------------------------------------[[Set Angle]]------------------------------------').grid(
+        row=0, column=0, columnspan=3, sticky=EW)
+    label1 = Label(tk, text='x_angle').grid(row=1, column=0)
+    label2 = Label(tk, text='y_angle').grid(row=2, column=0)
+    label3 = Label(tk,
+                   text='-------------------------------------[[Mode Selection]]---------------------------------').grid(
+        row=3, column=0, columnspan=3, sticky=EW)
 
-    
+    label6 = Label(tk, text='').grid(row=8, column=0, columnspan=3, sticky=EW)
+    label4 = Label(tk, text='Nvidia Jetson Nano 4GB Development Kit (JetPack 4.6)').grid(row=9, column=0, columnspan=3,
+                                                                                         sticky=EW)
+    label5 = Label(tk, text='CUDA 10.2  / OpenCV 4.5.3 with CUDA / PyTorch 1.8.0 with CUDA / Torchvision 0.9.0').grid(
+        row=10, column=0, columnspan=3, sticky=EW)
+
     entry1 = Entry(tk)
     entry2 = Entry(tk)
 
-    entry1.grid(row=1,column=1)
-    entry2.grid(row=2,column=1)
-
+    entry1.grid(row=1, column=1)
+    entry2.grid(row=2, column=1)
 
     def mode1():
         global mode
-        mode=1
+        mode = 1
 
-    def turn() :
-        global mode ,angle_x, angle_y, now_angle_x, now_angle_y
-        mode=0 # 수동으로 각도 회전 중일 경우 ! 
+    def turn():
+        global mode, angle_x, angle_y, now_angle_x, now_angle_y
+        mode = 0  # 수동으로 각도 회전 중일 경우 !
         angle_x = int(entry1.get())
         angle_y = int(entry2.get())
 
-        motor.move(4,angle_x)
-        motor.move(3,angle_y)
+        motor.movex(1, angle_x)
+        motor.movey(2, angle_y)
 
         now_angle_x = angle_x
         now_angle_y = angle_y
 
-        mode=1 
+        mode = 1
 
-    def patrol() :
+    def patrol():
         global mode, line, line_num, now_angle_x, now_angle_y
-        mode=2
-        for i in range (180):
+        mode = 2
+        for i in range(180):
             now_angle_x = i
             now_angle_y = 0
-            motor.move(4,0)
-            motor.move(3,i)
+            motor.movey(2, 0)
+            motor.movex(1, i)
             time.sleep(0.05)
-        for i in range (180,1,-1) :
+        for i in range(180, 1, -1):
             now_angle_x = i
             now_angle_y = 10
-            motor.move(4,10)
-            motor.move(3,i)
+            motor.movey(2, 10)
+            motor.movex(1, i)
             time.sleep(0.05)
-        for i in range (180):
+        for i in range(180):
             now_angle_x = i
             now_angle_y = 20
-            motor.move(4,20)
-            motor.move(3,i)
+            motor.movey(2, 20)
+            motor.movex(1, i)
             time.sleep(0.05)
-        for i in range (180,1,-1):
+        for i in range(180, 1, -1):
             now_angle_x = i
             now_angle_y = 30
-            motor.move(4,30)
-            motor.move(3,i)
+            motor.movey(2, 30)
+            motor.movex(1, i)
             time.sleep(0.05)
 
         time.sleep(4)
 
-        f = open('log.txt','r') # Detect결과 저장된 txt파일 읽어오기 
+        f = open('log.txt', 'r')  # Detect결과 저장된 txt파일 읽어오기
         line = f.read()
-        f.close()     
-
+        f.close()
 
         root = Tk()
         widget = Text(root)
@@ -442,49 +440,43 @@ def gui():
 
         os.remove('log.txt')
 
-        motor.move(3,0)
-        motor.move(4,0) # 제자리 정렬 
+        motor.movex(1, 0)
+        motor.movey(2, 0)  # 제자리 정렬
 
         now_angle_x = 0
         now_angle_y = 0
 
-        mode=4 
+        mode = 4
 
-    button1 = Button(tk,text='Enter',bg='black',fg='white',width=20,command=turn).grid(row=1,column=2,rowspan=2,sticky=NS)
-    button2 = Button(tk,text='Patrol',bg='black',fg='white',width=20,command=patrol).grid(row=4,column=0,rowspan=2,sticky=S)
-    button3 = Button(tk,text='Tracking',bg='black',fg='white',width=20,command=mode1).grid(row=4,column=1,rowspan=2,sticky=S)
-    button4 = Button(tk,text='Control',bg='black',fg='white',width=20,command=turn).grid(row=4,column=2,rowspan=2,sticky=S)
-
+    button1 = Button(tk, text='Enter', bg='black', fg='white', width=20, command=turn).grid(row=1, column=2, rowspan=2,
+                                                                                            sticky=NS)
+    button2 = Button(tk, text='Patrol', bg='black', fg='white', width=20, command=patrol).grid(row=4, column=0,
+                                                                                               rowspan=2, sticky=S)
+    button3 = Button(tk, text='Tracking', bg='black', fg='white', width=20, command=mode1).grid(row=4, column=1,
+                                                                                                rowspan=2, sticky=S)
+    button4 = Button(tk, text='Control', bg='black', fg='white', width=20, command=turn).grid(row=4, column=2,
+                                                                                              rowspan=2, sticky=S)
 
     tk.mainloop()
 
 
-
-
-
-
 def main(opt):
-    global motor_angle_x , motor_angle_y, mode	,user_input_x, user_input_y, flag
+    global motor_angle_x, motor_angle_y, mode, user_input_x, user_input_y, flag
     # print("******************** Mode Type ********************\n")
     # print("For AutoMode   : Type 1 \n")
     # print("For Patrol Mode : Type 2 \n")
-	
-    # mode = int(input("Select Mode : "))    
-   
+
+    # mode = int(input("Select Mode : "))
+
     check_requirements(exclude=('tensorboard', 'thop'))
-    
 
 
-
-        
 if __name__ == "__main__":
     opt = parse_opt()
     main(opt)
 
-
     t1 = Thread(target=gui)
     t1.start()
-
 
     t0 = Thread(target=runn(**vars(opt)))
     t0.start()
