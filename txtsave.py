@@ -1,3 +1,6 @@
+
+#log.txt 생성용
+
 import datetime
 
 name = 'ship'
