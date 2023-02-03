@@ -59,10 +59,9 @@ from utils.torch_utils import select_device, smart_inference_mode
 count = 0
 motor_angle_x = 90
 motor_angle_y = 0
-mode = 0
+mode = 4
 user_input_x = 0
 user_input_y = 0
-mode = 2
 flag = 0
 line = ''
 line_num = 0
@@ -102,8 +101,8 @@ def runn(
 ):
     global motor_angle_x, motor_angle_y, count, flag, mode, angle_x, angle_y, line, line_num, now_angle_x, now_angle_y
 
-    motor.move(1, 90)
-    motor.move(2, 0)  # 초기 정렬
+    motor.movex(1, 90)
+    motor.movey(2, 0)  # 초기 정렬
 
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
@@ -188,6 +187,9 @@ def runn(
 
                     center_x = center_point[0]
                     center_y = -(center_point[1] - 480)
+                    
+                    print (center_x)
+                    print (center_y)
 
                     motor_angle_x = motor.normalize_0_to_180_x(center_x)
                     motor_angle_y = motor.normalize_0_to_180_y(center_y)
@@ -198,16 +200,21 @@ def runn(
 
                     if (mode == 1):
                         print('mode 1 : Tracking Mode')
-                        motor.move(1, now_angle_x + motor_angle_x)
-                        motor.move(2, now_angle_y + motor_angle_y)
+                        motor.movex(1, now_angle_x - motor_angle_x)
+                        motor.movey(2, now_angle_y + motor_angle_y)
+                        print ('now_angle_x:')
+                        print (now_angle_x)
+                        print ('now_angle_y:')
+                        print (now_angle_y)
 
-                        now_angle_x = now_angle_x + motor_angle_x
+
+                        now_angle_x = now_angle_x - motor_angle_x
                         now_angle_y = now_angle_y + motor_angle_y
 
-                    if (mode == 1 and (abs(center_x - 320) < 5 and abs(center_y - 240) < 5)):
+                    if (mode == 1 and (abs(center_x - 320) < 15 and abs(center_y - 240) < 15)):
                         time.sleep(5)
-                        motor.move(1, 0)
-                        motor.move(2, 0)
+                        motor.movex(1, 0)
+                        motor.movey(2, 0)
 
                         now_angle_x = 0
                         now_angle_y = 0
@@ -217,7 +224,7 @@ def runn(
                     if (mode == 2):
                         print('mode 2 : Patrol Mode')
 
-                    if (mode == 2 and (abs(center_x - 320) < 5 and abs(center_y - 240) < 5)):
+                    if (mode == 2 and (abs(center_x - 320) < 15 and abs(center_y - 240) < 15)):
                         name = 'ship'
                         print('detected')
                         f = open('log.txt', 'w')
@@ -234,10 +241,17 @@ def runn(
                     #
                     if (mode == 4):
                         print('Idle State')
+                    
+                    #print('now_angle_x : ')
+                    #print(now_angle_x)
+                    #print('now_angle_y : ')
+                    #print(now_angle_y)
+
+
 
                         # if (mode == 1 and (abs(center_x-320)>5 or abs(center_y-240)>5)) :
-                    #     motor.move(1,motor_angle_x)
-                    #     motor.move(2,motor_angle_y)
+                    #     motor.movex(1,motor_angle_x)
+                    #     motor.movey(2,motor_angle_y)
 
                 # Print results
                 for c in det[:, 5].unique():
@@ -337,7 +351,7 @@ def parse_opt():
 
 
 def gui():
-    global mode, angle_x, angle_y, line, line_num
+    global mode, angle_x, angle_y, line, line_num , now_angle_x , now_angle_y
     tk = Tk()
 
     tk.title('Motor Control')
@@ -373,8 +387,8 @@ def gui():
         angle_x = int(entry1.get())
         angle_y = int(entry2.get())
 
-        motor.move(1, angle_x)
-        motor.move(2, angle_y)
+        motor.movex(1, angle_x)
+        motor.movey(2, angle_y)
 
         now_angle_x = angle_x
         now_angle_y = angle_y
@@ -387,26 +401,26 @@ def gui():
         for i in range(180):
             now_angle_x = i
             now_angle_y = 0
-            motor.move(2, 0)
-            motor.move(1, i)
+            motor.movey(2, 0)
+            motor.movex(1, i)
             time.sleep(0.05)
         for i in range(180, 1, -1):
             now_angle_x = i
             now_angle_y = 10
-            motor.move(2, 10)
-            motor.move(1, i)
+            motor.movey(2, 10)
+            motor.movex(1, i)
             time.sleep(0.05)
         for i in range(180):
             now_angle_x = i
             now_angle_y = 20
-            motor.move(2, 20)
-            motor.move(1, i)
+            motor.movey(2, 20)
+            motor.movex(1, i)
             time.sleep(0.05)
         for i in range(180, 1, -1):
             now_angle_x = i
             now_angle_y = 30
-            motor.move(2, 30)
-            motor.move(1, i)
+            motor.movey(2, 30)
+            motor.movex(1, i)
             time.sleep(0.05)
 
         time.sleep(4)
@@ -426,8 +440,8 @@ def gui():
 
         os.remove('log.txt')
 
-        motor.move(1, 0)
-        motor.move(2, 0)  # 제자리 정렬
+        motor.movex(1, 0)
+        motor.movey(2, 0)  # 제자리 정렬
 
         now_angle_x = 0
         now_angle_y = 0
@@ -466,4 +480,3 @@ if __name__ == "__main__":
 
     t0 = Thread(target=runn(**vars(opt)))
     t0.start()
-
