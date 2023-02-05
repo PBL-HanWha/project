@@ -225,9 +225,9 @@ def runn(
                     #print(names)
                     #print(names[int(det[0, 5])])
                     
-                    print(det)
-                    print('vvvvvvvvvvvvvvvv')
-                    print(det[:1])
+                    #print(det)
+                    #print('vvvvvvvvvvvvvvvv')
+                    #print(det[:1])
 
                     print (center_x)
                     print (center_y)
@@ -259,12 +259,12 @@ def runn(
                         #now_angle_y = now_angle_y + motor_angle_y # 돌아간 이후에 현재 각도 값을 갱신
                         #time.sleep(3)
 
-                    if (mode == 1 and (abs(center_x - 320) < 15 and abs(center_y - 240) < 15)): # 일정 각도 내에 Detect될 경우
-                        time.sleep(5) # 5초 가만히 있다가 
-                        motor.movex(1, 0)  # 일정각도로 다시 되돌아간다
+                    if (mode == 1 and (abs(center_x - 320) < 100 and abs(center_y - 240) < 100)): # 일정 각도 내에 Detect될 경우
+                        time.sleep(2) # 5초 가만히 있다가 
+                        motor.movex(1, 90)  # 일정각도로 다시 되돌아간다
                         motor.movey(2, 0)
 
-                        now_angle_x = 0 # 현재 각도 값 갱신 
+                        now_angle_x = 90 # 현재 각도 값 갱신 
                         now_angle_y = 0
 
                         mode = 4 # Idle State로 돌아감 (아무것도 안하는 상태)
@@ -274,9 +274,9 @@ def runn(
                                     
                         print('mode 2 : Patrol Mode')
 
-                    if (mode == 2 and (abs(center_x - 320) < 15 and abs(center_y - 240) < 15)): # Patrol 중 일정 각도 내에 들어오면
+                    if (mode == 2 and (abs(center_x - 320) < 100 and abs(center_y - 240) < 100)): # Patrol 중 일정 각도 내에 들어오면
                         name = 'ship' # name 뭘로 받을지 몰라서 일단 ship으로 해놨었음 
-                        print('detected') # 탐지되면 Detected 라는 말을 띄우고
+                        print('***************************detected*********************************') # 탐지되면 Detected 라는 말을 띄우고
                         f = open('log.txt', 'a')  # log.txt라는 파일을 append (추가) 모드로 생성 및 열기
                         msg = [str(datetime.datetime.now()), ': [', names[int(det[0, 5])], '] is detected... Location : X = ',
                                str(now_angle_x), ', Y = ', str(now_angle_y), '\n'] # 현재 시간 : name , x,y 값을 리스트로 
@@ -542,7 +542,14 @@ def gui():
         # 이렇게 motor 도는 동안 yolo모델 함수는 계속 돌고 있음 ! 
         # 일정 각도 내로 들어오면 log.txt파일 열어서 관측결과 저장하는 중
 
-        time.sleep(4) # 혹시 저장 덜 됐을지 모르니 좀 기다려 줌 
+        time.sleep(.5) # 혹시 저장 덜 됐을지 모르니 좀 기다려 줌 
+        motor.movex(1,90)
+        motor.movey(2,0) #
+        now_angle_x = 90
+        now_angle_y = 0
+
+
+
 
         
 
