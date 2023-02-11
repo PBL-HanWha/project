@@ -57,6 +57,9 @@ from utils.general import (LOGGER, Profile, check_file, check_img_size, check_im
 from utils.plots import Annotator, colors, save_one_box
 from utils.torch_utils import select_device, smart_inference_mode
 
+angle_x = 90
+angle_y = 0
+
 motor_angle_x = 90
 motor_angle_y = 0
 
@@ -232,8 +235,8 @@ def runn(
                     print (center_x)
                     print (center_y)
 
-                    motor_angle_x = motor.normalize_0_to_180_x(center_x)
-                    motor_angle_y = motor.normalize_0_to_180_y(center_y) # 이 화소값을 기반으로 angle값으로 변환 
+                    motor_angle_x = motor.normalize_0_to_180_x(center_x)*2
+                    motor_angle_y = motor.normalize_0_to_180_y(center_y)*2 # 이 화소값을 기반으로 angle값으로 변환 
 
                     if (mode == 0):  # mode = 0 만든 이유 -> 수동각도 입력 시 돌아가는 도중에 다른걸 추적하지 않기 위해
                                      # mode = 2인 상태로 유지되고 있으면 정한 각도로 이동하다가 중간에 Detect되면 거기에 잡혀버림
@@ -253,14 +256,15 @@ def runn(
                         print (now_angle_x)
                         print ('now_angle_y:')
                         print (now_angle_y)
-
+                        
+                        
 
                         #now_angle_x = now_angle_x - motor_angle_x #
                         #now_angle_y = now_angle_y + motor_angle_y # 돌아간 이후에 현재 각도 값을 갱신
                         #time.sleep(3)
 
-                    if (mode == 1 and (abs(center_x - 320) < 100 and abs(center_y - 240) < 100)): # 일정 각도 내에 Detect될 경우
-                        time.sleep(2) # 5초 가만히 있다가 
+                    if (mode == 1 and (abs(center_x - 320) < 40 and abs(center_y - 240) < 40) and (abs(angle_x-now_angle_x)<5) and (abs(angle_y-now_angle_y)<5)): # 일정 각도 내에 Detect될 경우			
+                        time.sleep(5) # 5초 가만히 있다가
                         motor.movex(1, 90)  # 일정각도로 다시 되돌아간다
                         motor.movey(2, 0)
 
@@ -274,8 +278,8 @@ def runn(
                                     
                         print('mode 2 : Patrol Mode')
 
-                    if (mode == 2 and (abs(center_x - 320) < 100 and abs(center_y - 240) < 100)): # Patrol 중 일정 각도 내에 들어오면
-                        name = 'ship' # name 뭘로 받을지 몰라서 일단 ship으로 해놨었음 
+                    if (mode == 2 and (abs(center_x - 320) < 20 and abs(center_y - 240) < 80)): # Patrol 중 일정 각도 내에 들어오면
+                        #name = 'ship' # name 뭘로 받을지 몰라서 일단 ship으로 해놨었음 
                         print('***************************detected*********************************') # 탐지되면 Detected 라는 말을 띄우고
                         f = open('log.txt', 'a')  # log.txt라는 파일을 append (추가) 모드로 생성 및 열기
                         msg = [str(datetime.datetime.now()), ': [', names[int(det[0, 5])], '] is detected... Location : X = ',
@@ -291,6 +295,8 @@ def runn(
                     #
                     if (mode == 4): # Idle 상태 : 아무것도 안하는 상태 (대기상태)
                         print('Idle State')
+                        motor.movex(1,90)
+                        motor.movey(2,0)
                 
 
                 # Print results
@@ -391,7 +397,7 @@ def parse_opt():
 
 
 def gui():
-    global mode, angle_x, angle_y, line,  now_angle_x , now_angle_y, anglex,angley,gamepad,Isstopped,before
+    global mode, angle_x, angle_y, line,  now_angle_x , now_angle_y, anglex,angley,gamepad,Isstopped,before,devices
     tk = Tk()
 
     tk.title('Motor Control') # GUI 창 제목 설정
@@ -414,18 +420,17 @@ def gui():
     entry1 = Entry(tk) # 입력칸 선언 
     entry2 = Entry(tk) # 입력칸 선언 
 
-    entry1.grid(row=1, column=1) # 1,1 위치에 빈칸 생성 (x_angle 입력할 곳) 
-    entry2.grid(row=2, column=1) # 2,1 위치에 빈칸 생성 (y_angle 입력할 곳)
-
-    
+    entry1.grid(row=1, column=1) # 1,1 위치에 빈칸 생성 (x_angle 입력할 곳)     
+    entry2.grid(row=2, column=1) # 2,1 위치에 빈칸 생성 (y_angle 입력할 곳) 
 
     def joystick():  # 조이스틱 제어를 위한 함수 
-        global anglex,angley,gamepad,Isstopped,before
+        global anglex,angley,gamepad,Isstopped,before,devices,mode
+        mode=3
         for device in devices:
                             if device.name==' USB Gamepad          ':
                                 gamepad=evdev.InputDevice(device.path)
                                 while True:
-                                    time.sleep(.08) # 이거 작게 줄수록 조이스틱 조작에 민감함 
+                                    time.sleep(.01) # 이거 작게 줄수록 조이스틱 조작에 민감함 
                                     event=gamepad.read_one()
                                     if event==None and Isstopped==False:
                                         if before!=None:
@@ -433,7 +438,10 @@ def gui():
                                             Isstopped=False
 
                                     if event:
-                                        if event.type == evdev.ecodes.EV_KEY:
+                                        if event.value==1 and event.type==evdev.ecodes.EV_KEY and (event.code==292 or event.code==293): #when pressing front,upper button, mode will change for idle mode
+                                            mode=4
+                                            break;
+                                        elif event.type == evdev.ecodes.EV_KEY:
                                             if event.value==0:
                                                 Isstopped=True
                                             if event.value==1: #right joystick on state
@@ -457,7 +465,7 @@ def gui():
                                                         anglex = 45
                                                     #print(anglex)
                                                     if mode==3 : motor.movex(ids,anglex)
-                                        if event.type == 3:
+                                        elif event.type == 3:
                                             if event.value==127:
                                                 print('stop')
                                                 Isstopped=True
@@ -481,6 +489,11 @@ def gui():
                                                         angley = 0
                                                     #print(angley)
                                                     if mode==3 : motor.movey(ids,angley)
+                                        elif event.value==1 and event.type==evdev.ecodes.EV_KEY and (event.code==294 or event.code==295): #when pressing front,under button motor will rearrange
+                                                motor.movex(1,90)
+                                                motor.movey(2,0)
+                                                    
+
     def mode1():
         global mode,motor_angle_x,motor_angle_y,now_angle_x,now_angle_y
         mode = 1
@@ -499,8 +512,10 @@ def gui():
 
     def turn(): #수동으로 회전할 때 쓰는 함수 
         global mode, angle_x, angle_y, now_angle_x, now_angle_y
-        mode = 0  # 수동으로 각도 변환 중에 Detect가 이루어지면 안됨 --> Turning... 을 출력하고 아무것도 안하는 상태인 mode=0으로 설정 
+        mode = 4  # 수동으로 각도 변환 중에 Detect가 이루어지면 안됨 --> Turning... 을 출력하고 아무것도 안하는 상태인 mode=0으로 설정 
         angle_x = int(entry1.get()) # 빈칸으로 받은 값 int 저장
+        print('*******************************************************************')
+        print(angle_x)
         angle_y = int(entry2.get()) # 빈칸으로 받은 값 int 저장
 
         motor.movex(1, angle_x) # motor.move가 movex와 movey로 나눠진 이유 -->> x는 0~180도 y는 0~90도로 제한되니까 상한하한 따로 처리하기 위해 분리함
@@ -513,32 +528,55 @@ def gui():
 
     def patrol(): # 전체 훑을 때 쓰는 함수
         global mode, line, now_angle_x, now_angle_y
-        mode = 2
-        for i in range(180): # x값은 0~180 천천히 이동하고 y값 조금씩 증가시켜서 전체 map을 훑는다
+        mode = 4
+        time.sleep(0.5)
+        mode = 2      
+        for i in range(45,136): # x값은 0~180 천천히 이동하고 y값 조금씩 증가시켜서 전체 map을 훑는다
             now_angle_x = i # 현재 각도 값 갱신
             now_angle_y = 0 # 현재 각도 값 갱신
             motor.movey(2, 0)
             motor.movex(1, i)
-            time.sleep(0.05)
-        for i in range(180, 1, -1):
-            now_angle_x = i # 현재 각도 값 갱신
-            now_angle_y = 10 # 현재 각도 값 갱신 
-            motor.movey(2, 10)
-            motor.movex(1, i)
-            time.sleep(0.05)
-        for i in range(180):
-            now_angle_x = i # 현재 각도 값 갱신
-            now_angle_y = 20 # 현재 각도 값 갱신
-            motor.movey(2, 20)
-            motor.movex(1, i)
-            time.sleep(0.05)
-        for i in range(180, 1, -1):
-            now_angle_x = i # 현재 각도 값 갱신
-            now_angle_y = 30 # 현재 각도 값 갱신
-            motor.movey(2, 30)
-            motor.movex(1, i)
-            time.sleep(0.05)
+            time.sleep(0.08)
 
+        for i in range(135,44, -1): # x값은 0~180 천천히 이동하고 y값 조금씩 증가시켜서 전체 map을 훑는다
+            now_angle_x = i # 현재 각도 값 갱신
+            now_angle_y = 7 # 현재 각도 값 갱신
+            motor.movey(2, 7)
+            motor.movex(1, i)
+            time.sleep(0.08)
+
+        for i in range(45,136): # x값은 0~180 천천히 이동하고 y값 조금씩 증가시켜서 전체 map을 훑는다
+            now_angle_x = i # 현재 각도 값 갱신
+            now_angle_y = 14 # 현재 각도 값 갱신
+            motor.movey(2, 14)
+            motor.movex(1, i)
+            time.sleep(0.08)
+
+        for i in range(135,44, -1): # x값은 0~180 천천히 이동하고 y값 조금씩 증가시켜서 전체 map을 훑는다
+            now_angle_x = i # 현재 각도 값 갱신
+            now_angle_y = 21 # 현재 각도 값 갱신
+            motor.movey(2, 21)
+            motor.movex(1, i)
+            time.sleep(0.08)
+
+
+
+        for i in range(45,136):
+            now_angle_x = i # 현재 각도 값 갱신
+            now_angle_y = 28 # 현재 각도 값 갱신 
+            motor.movey(2, 28)
+            motor.movex(1, i)
+            time.sleep(0.08)
+
+        for i in range(135,44, -1):
+            now_angle_x = i # 현재 각도 값 갱신
+            now_angle_y = 35 # 현재 각도 값 갱신
+            motor.movey(2, 35)
+            motor.movex(1, i)
+            time.sleep(0.08)
+
+        
+      
         # 이렇게 motor 도는 동안 yolo모델 함수는 계속 돌고 있음 ! 
         # 일정 각도 내로 들어오면 log.txt파일 열어서 관측결과 저장하는 중
 
@@ -576,7 +614,7 @@ def gui():
         now_angle_x = 0 # 현재 각도 값 갱신
         now_angle_y = 0
 
-        mode = 4
+        mode = 1
 
     button1 = Button(tk, text='Enter', bg='black', fg='white', width=20, command=turn).grid(row=1, column=2, rowspan=2,
                                                                                             sticky=NS)
