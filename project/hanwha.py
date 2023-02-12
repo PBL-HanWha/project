@@ -28,10 +28,11 @@ Usage - formats:
                                  yolov5s_edgetpu.tflite     # TensorFlow Edge TPU
                                  yolov5s_paddle_model       # PaddlePaddle
 """
+import evdev
 import datetime
 from tkinter import *
 from multiprocessing import Process
-from threading import Thread
+from threading import Threadgit
 import time
 import cv2
 import argparse
@@ -56,17 +57,73 @@ from utils.general import (LOGGER, Profile, check_file, check_img_size, check_im
 from utils.plots import Annotator, colors, save_one_box
 from utils.torch_utils import select_device, smart_inference_mode
 
-count = 0
-motor_angle_x = 90
+angle_x = 0
+angle_y = 0
+
+motor_angle_x = 0
 motor_angle_y = 0
-mode = 1
+
+mode = 4
+
 user_input_x = 0
-user_input_y = 0
-flag = 0
+user_input_y = 0 
+
 line = ''
-line_num = 0
-now_angle_x = 90
-now_angle_y = 0
+
+now_angle_x = 0 # 현재의 x각도 값을 계속 갱신
+now_angle_y = 0  # 현재의 x각도 값을 계속 갱신
+
+count=0
+
+x_ok = 0
+y_ok = 0
+
+## For 조이스틱 
+anglex=0
+angley=0
+before=None
+Isstopped=False
+devices=[evdev.InputDevice(path) for path in evdev.list_devices()]
+gampepad=None
+joystick_flag=0
+
+## offset
+offset_flag = 0
+offset_x = 0 
+offset_y = 0
+enable = 1
+
+##
+turnback_flag = 0
+
+def setanglex(anglex): # 조이스틱 조작에 쓰이는 함수
+	if anglex >180 : anglex = 0
+	elif anglex <0 : anglex = 0
+
+def setangley(angley): # 조이스틱 조작에 쓰이는 함수
+	if angley >35 : angley = 35
+	elif angley <0 : angley = 0
+
+def movex(angle):
+    global offset_flag, now_angle_x , offset_x
+    if offset_flag == 1 :
+        now_angle_x = motor.movex(1, angle,offset_x)
+    else :
+        now_angle_x = motor.movex(1, angle,0)
+    
+
+def movey(angle):
+    global offset_flag, now_angle_y, offset_y
+    if offset_flag == 1 :
+        now_angle_y = motor.movey(2, angle,offset_y)
+    else :
+        now_angle_y = motor.movey(2, angle,0)
+    
+
+
+
+
+
 
 
 @smart_inference_mode()
@@ -82,7 +139,7 @@ def runn(
         view_img=False,  # show results
         save_txt=False,  # save results to *.txt
         save_conf=False,  # save confidences in --save-txt labels
-        save_crop=False,  # save cropped prediction boxes
+        save_crop=False, # save cropped prediction boxes
         nosave=False,  # do not save images/videos
         classes=None,  # filter by class: --class 0, or --class 0 2 3
         agnostic_nms=False,  # class-agnostic NMS
@@ -99,10 +156,10 @@ def runn(
         dnn=False,  # use OpenCV DNN for ONNX inference
         vid_stride=1,  # video frame-rate stride
 ):
-    global motor_angle_x, motor_angle_y, count, flag, mode, angle_x, angle_y, line, line_num, now_angle_x, now_angle_y
+    global motor_angle_x, motor_angle_y, mode, angle_x, angle_y, line,  now_angle_x, now_angle_y,count,offset_x,offset_y,turnback_flag,offset_flag, joystick_flag, enable, x_ok, y_ok
 
-    motor.movex(1, 90)
-    motor.movey(2, 0)  # 초기 정렬
+    movex(0)
+    movey(0)  # 초기 정렬
 
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
@@ -178,80 +235,131 @@ def runn(
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_boxes(im.shape[2:], det[:, :4], im0.shape).round()
 
-                for *xyxy, conf, cls in reversed(det):
+                for *xyxy, conf, cls in reversed(det[:1]):
                     c1, c2 = (int(xyxy[0]), int(xyxy[1])), (int(xyxy[2]), int(xyxy[3]))
                     center_point = round((c1[0] + c2[0]) / 2), round((c1[1] + c2[1]) / 2)
                     circle = cv2.circle(im0, center_point, 5, (0, 255, 0), 2)
                     text_coord = cv2.putText(im0, str(center_point), center_point, cv2.FONT_HERSHEY_PLAIN, 2,
                                              (0, 0, 255))
 
-                    center_x = center_point[0]
-                    center_y = -(center_point[1] - 480)
+                    center_x = center_point[0]             # 현재 라운딩박스 중심 x좌표
+                    center_y = -(center_point[1] - 480)     # 현재 라운딩박스 중심 y좌표
+
+                    # -(y-480)하는 이유 : 코드로직상 좌측 상단이 (0,0) 우측 하단이 (640,480)임 
+               
+                    cv2.circle(320,240, 5)                
+
+
+                    if now_angle_x > 180 : now_angle_x = 180
+                    if now_angle_x < 0   : now_angle_x = 0
+                    if now_angle_y > 35 : now_angle_y = 35
+                    if now_angle_y < -10 : now_angle_y = -10
                     
-                    print (center_x)
-                    print (center_y)
+                    
+                    if (joystick_flag==1):
+                        temp = offset_flag
+                        offset_flag=0
+                        movex(now_angle_x - motor_angle_x)
+                        movey(now_angle_y + motor_angle_y)
+                        offset_flag = temp
+                        joystick_flag = 0
+                                           
+                              
 
-                    motor_angle_x = motor.normalize_0_to_180_x(center_x)
-                    motor_angle_y = motor.normalize_0_to_180_y(center_y)
 
-                    if (mode == 0):
-                        print('Turning  . . . . .')
+                    
+
+
+                    #print(count)
+                    #print(names)
+                    #print(names[int(det[0, 5])])
+                    
+                    #print(det)
+                    #print('vvvvvvvvvvvvvvvv')
+                    #print(det[:1])
+
+                    #print (center_x)
+                    #print (center_y)
+
+                    motor_angle_x = motor.normalize_0_to_180_x(center_x)*2
+                    motor_angle_y = motor.normalize_0_to_180_y(center_y)*2 # 이 화소값을 기반으로 angle값으로 변환
+                    
+                    if(enable==1):
+                        print ('-------------------------')
+                        print ("Offset_x : ", -motor_angle_x )
+                        print ("Offset_y : ", motor_angle_y )
+                        print ('-------------------------')
+ 
+
+                    #if (mode == 0):  # mode = 0 만든 이유 -> 수동각도 입력 시 돌아가는 도중에 다른걸 추적하지 않기 위해
+                                     # mode = 2인 상태로 유지되고 있으면 정한 각도로 이동하다가 중간에 Detect되면 거기에 잡혀버림
+                        #print('Turning  . . . . .')  
                         ###############################################################################################################
 
-                    if (mode == 1):
-                        print('mode 1 : Tracking Mode')
-                        motor.movex(1, now_angle_x - motor_angle_x)
-                        motor.movey(2, now_angle_y + motor_angle_y)
-                        print ('now_angle_x:')
-                        print (now_angle_x)
-                        print ('now_angle_y:')
-                        print (now_angle_y)
+                    #if (mode == 1):
+                        #print('mode 1 : Tracking Mode')
+                        #movex(1, now_angle_x - motor_angle_x) # 현재 각도에 x화소 값 차이만큼 이동
+                        #movey(2, now_angle_y + motor_angle_y) # 현재 각도에 y화소 값 차이만큼 이동 
 
+                        #  now_x - motor_x 여기만 뺄셈인 이유는 모터 회전방향 때문임 
+                        #  x화소는 좌측에서 우측으로 갈 수록 증가하지만
+                        #  모터가 0도일때 오른쪽을 보고 180도일때 왼쪽을 봐서 서로 반대임
 
-                        now_angle_x = now_angle_x - motor_angle_x
-                        now_angle_y = now_angle_y + motor_angle_y
+                        
+                        
+                        
 
-                    if (mode == 1 and (abs(center_x - 320) < 5 and abs(center_y - 240) < 5)):
-                        time.sleep(5)
-                        motor.movex(1, 0)
-                        motor.movey(2, 0)
+                        #now_angle_x = now_angle_x - motor_angle_x #
+                        #now_angle_y = now_angle_y + motor_angle_y # 돌아간 이후에 현재 각도 값을 갱신
+                        #time.sleep(3)
+                    #print ('now_angle_x:', now_angle_x)
+                    #print ('now_angle_y:', now_angle_y)    
 
-                        now_angle_x = 0
-                        now_angle_y = 0
+                    if ((offset_flag==0) and (abs(center_x - 320) < 40 and abs(center_y - 240) < 40) and (abs(angle_x-now_angle_x)<5) and (abs(angle_y-now_angle_y)<5)): # 일정 각도 내에 Detect될 경우			
+                        #time.sleep(5) # 5초 가만히 있다가
+                        print('Arrange Complete')
+                        turnback_flag = 1
+                        x_ok = 1
+                        y_ok = 1
+                    
+                    if ((offset_flag==1) and (abs(center_x - 320) < 40 and abs(center_y - 240) < 40) and (abs(angle_x + offset_x -now_angle_x)<5) and (abs(angle_y + offset_y -now_angle_y)<5)): # 일정 각도 내에 Detect될 경우			
 
-                        mode = 4
+                        #time.sleep(5) # 5초 가만히 있다가
+                        print('Arrange Complete')
+                        turnback_flag = 1        
+                        x_ok = 1
+                        y_ok = 1                
+                                             ###############################################################################################################
+
+                    #if (mode == 2): #전체 훑는 모드 --> for문 써야하는데 여기에 for문 넣으니까 yolo가 멈춰서 
+                                    #                   이 모드에선 motor.move를 gui에서 처리함  
+                                    
+                        #print('mode 2 : Patrol Mode')
+                    #print('x_error: ', abs(center_x-320))
+                    
+                    #print('y_error: ', abs(center_y-240))
+                    
+                    
+                    if (mode == 2 and (abs(center_x - 320) < 20 and abs(center_y - 240) < 80)): # Patrol 중 일정 각도 내에 들어오면
+                        #name = 'ship' # name 뭘로 받을지 몰라서 일단 ship으로 해놨었음 
+                        print('***************************detected*********************************') # 탐지되면 Detected 라는 말을 띄우고
+                        f = open('log.txt', 'a')  # log.txt라는 파일을 append (추가) 모드로 생성 및 열기
+                        msg = [str(datetime.datetime.now()), ': [', names[int(det[0, 5])], '] is detected... Location : X = ',
+                               str(now_angle_x), ', Y = ', str(now_angle_y), '\n'] # 현재 시간 : name , x,y 값을 리스트로 
+                        msg = ''.join(msg) # join 함수를 이용해서 이어 붙여서 문자열을 만듦
+                        f.write(msg) # 만든 문자열을 log.txt에 작성
+                        f.close      
                         ###############################################################################################################
-                    if (mode == 2):
-                        print('mode 2 : Patrol Mode')
-
-                    if (mode == 2 and (abs(center_x - 320) < 5 and abs(center_y - 240) < 5)):
-                        name = 'ship'
-                        print('detected')
-                        f = open('log.txt', 'w')
-                        msg = [str(datetime.datetime.now()), ': [', str(name), '] is detected... Location : X = ',
-                               str(now_angle_x), ', Y = ', str(now_angle_y), '\n']
-                        msg = ''.join(msg)
-                        f.write(msg)
-                        f.close
-                        ###############################################################################################################
-                    if (mode == 3):
-                        print('mode 3 : Control Mode')
+                    #if (mode == 3): # 조이스틱 모드 
+                        #print('mode 3 : Control Mode') # 여기서 제어하니까 카메라가 멈춰서 이것도 GUI 쪽에서 제어 
 
                         ###############################################################################################################
                     #
-                    if (mode == 4):
-                        print('Idle State')
-                    
-                    #print('now_angle_x : ')
-                    #print(now_angle_x)
-                    #print('now_angle_y : ')
-                    #print(now_angle_y)
-
-
-
-                        # if (mode == 1 and (abs(center_x-320)>5 or abs(center_y-240)>5)) :
-                    #     motor.movex(1,motor_angle_x)
-                    #     motor.movey(2,motor_angle_y)
+                    if (mode == 4): # Idle 상태 : 아무것도 안하는 상태 (대기상태)
+                        #print('Idle State')
+                        now_angle_x = motor.movex(1,0,0)
+                        now_angle_y = motor.movey(2,0,0)
+                
 
                 # Print results
                 for c in det[:, 5].unique():
@@ -303,7 +411,7 @@ def runn(
                     vid_writer[i].write(im0)
 
         # Print time (inference-only)
-        # LOGGER.info(f"{s}{'' if len(det) else '(no detections), '}{dt[1].dt * 1E3:.1f}ms")
+            #LOGGER.info(f"{s} **** {'' if len(det) else '(no detections), '} ****** {dt[1].dt * 1E3:.1f}ms")
 
     # Print results
     t = tuple(x.t / seen * 1E3 for x in dt)  # speeds per image
@@ -351,84 +459,195 @@ def parse_opt():
 
 
 def gui():
-    global mode, angle_x, angle_y, line, line_num , now_angle_x , now_angle_y
+    global mode, angle_x, angle_y, line,  now_angle_x , now_angle_y, anglex,angley
+    global gamepad,Isstopped,before,devices,turnback_flag, motor_angle_x, motor_angle_y
+    def refresh():
+        global motor_angle_x, motor_angle_y
+        o = 'OFFSET: (' + str(-motor_angle_x)+ ' , ' + str(motor_angle_y) + ')'
+        lab.config(text=o)
+        lab['text'] = o
+        tk.after(1000, refresh) # run itself again after 1000 ms
+
+    
     tk = Tk()
 
-    tk.title('Motor Control')
+    tk.title('Hanwha Systems PBL - Naval Gun Control') # GUI 창 제목 설정
     # tk.geometry("800x760")
-    label0 = Label(tk,
-                   text='----------------------------------------[[Set Angle]]------------------------------------').grid(
-        row=0, column=0, columnspan=3, sticky=EW)
-    label1 = Label(tk, text='x_angle').grid(row=1, column=0)
-    label2 = Label(tk, text='y_angle').grid(row=2, column=0)
-    label3 = Label(tk,
-                   text='-------------------------------------[[Mode Selection]]---------------------------------').grid(
-        row=3, column=0, columnspan=3, sticky=EW)
+    label1 = Label(tk, text='----------------------------------------[[Set Angle]]------------------------------------').grid(row=0, column=0, columnspan=3, sticky=EW) # row,column = 0,0위치에 3칸짜리(column span) ,East West쪽으로 쭉 늘림 (Sticky)
+    label2 = Label(tk, text='x_angle').grid(row=1, column=0) # 1,0 위치에 x_angle
+    label3 = Label(tk, text='y_angle').grid(row=2, column=0) # 2,0 위치에 y_angle
+	#label3 = Label(tk, text='y_angle').grid(row=8, column=0)
+	#label4 = Label(tk, text='y_angle').grid(row=2, column=0)
+	#label6 = Label(tk, text='').grid(row=9, column=0, columnspan=3, sticky=EW) # 공백 
+    label4 = Label(tk, text='----------------------------------------[[Mode Selection]]------------------------------------').grid(row=3, column=0, columnspan=3,sticky=EW)
+    label5 = Label(tk, text='Nvidia Jetson Nano 4GB Development Kit (JetPack 4.6)').grid(row=7, column=0, columnspan=3, sticky=EW)
+	#label3 = Label(tk, text='y_angle').grid(row=8, column=0)
+	#label4 = Label(tk, text='y_angle').grid(row=2, column=0)
+    lab = Label(tk , fg= 'red')
+    lab.grid(row=2, column=2, sticky=NS)
 
-    label6 = Label(tk, text='').grid(row=8, column=0, columnspan=3, sticky=EW)
-    label4 = Label(tk, text='Nvidia Jetson Nano 4GB Development Kit (JetPack 4.6)').grid(row=9, column=0, columnspan=3,
-                                                                                         sticky=EW)
-    label5 = Label(tk, text='CUDA 10.2  / OpenCV 4.5.3 with CUDA / PyTorch 1.8.0 with CUDA / Torchvision 0.9.0').grid(
-        row=10, column=0, columnspan=3, sticky=EW)
+    entry1 = Entry(tk) # 입력칸 선언 
+    entry2 = Entry(tk) # 입력칸 선언 
 
-    entry1 = Entry(tk)
-    entry2 = Entry(tk)
+    entry1.grid(row=1, column=1) # 1,1 위치에 빈칸 생성 (x_angle 입력할 곳)     
+    entry2.grid(row=2, column=1) # 2,1 위치에 빈칸 생성 (y_angle 입력할 곳) 
+                                         
+                                               
 
-    entry1.grid(row=1, column=1)
-    entry2.grid(row=2, column=1)
+    def default():
+        global now_angle_x, now_angle_y, offset_flag
+        temp = offset_flag
+        offset_flag = 0
+        movex(0)
+        movey(0)
+        offset_flag= temp
+
+    def offset_reset():
+        global offset_x, offset_y
+        offset_x=0
+        offset_y=0
+         
+
+                                              
+    def offset_mode():
+        global offset_flag
+        if offset_flag == 0 : 
+            offset_flag = 1
+            print("******Offset Correction ON******\n")
+        else : 
+            offset_flag = 0
+            print("******Offset Correction OFF******\n")
 
     def mode1():
-        global mode
+        global mode, motor_angle_x, motor_angle_y, now_angle_x, now_angle_y, offset_x, offset_y, turnback_flag,offset_flag,x_ok,y_ok
         mode = 1
+        enable = 1 
+        while (x_ok + y_ok != 2 ):
+            print('Tracking . . . .  \n')
+            movex(now_angle_x - motor_angle_x) # 현재 각도에 x화소 값 차이만큼 이동
+            movey(now_angle_y + motor_angle_y) # 현재 각도에 y화소 값 차이만큼 이동 
 
-    def turn():
-        global mode, angle_x, angle_y, now_angle_x, now_angle_y
-        mode = 0  # 수동으로 각도 회전 중일 경우 !
-        angle_x = int(entry1.get())
-        angle_y = int(entry2.get())
+                        #  now_x - motor_x 여기만 뺄셈인 이유는 모터 회전방향 때문임 
+                        #  x화소는 좌측에서 우측으로 갈 수록 증가하지만
+                        #  모터가 0도일때 오른쪽을 보고 180도일때 왼쪽을 봐서 서로 반대임
+            offset_x += (-motor_angle_x)
+            offset_y += (motor_angle_y)
+        
 
-        motor.movex(1, angle_x)
-        motor.movey(2, angle_y)
+        x_ok = 0 
+        y_ok = 0
+        
+        #print('offset_x : ',offset_x)
+        #print('offset_y : ',offset_y)
+        #print('\n')
 
-        now_angle_x = angle_x
-        now_angle_y = angle_y
+        #print('offset_y:  ')
+        #print(offset_y)
+        # now_angle_x = now_angle_x - motor_angle_x #
+        # now_angle_y = now_angle_y + motor_angle_y # 돌아간 이후에 현재 각도 값을 갱신
+        time.sleep(2)
+        if (turnback_flag == 1 ):
+            time.sleep(3)
+            temp = offset_flag
+            offset_flag=0
+            movex(0)
+            movey(0)
+            offset_flag=temp
+            turnback_flag = 0
+            enable = 0 
 
-        mode = 1
+    def turn(): #수동으로 회전할 때 쓰는 함수 
+        global mode, angle_x, angle_y, now_angle_x, now_angle_y , offset_x, offset_y , motor_angle_x, motor_angle_y, turnback_flag,offset_flag
+        enable = 1 
+        
+       
+        angle_x = int(entry1.get()) # 빈칸으로 받은 값 int 저장
+        angle_y = int(entry2.get()) # 빈칸으로 받은 값 int 저장
+        print('\n Turning to ( {} , {} )'.format(angle_x,angle_y))
 
-    def patrol():
-        global mode, line, line_num, now_angle_x, now_angle_y
-        mode = 2
-        for i in range(180):
-            now_angle_x = i
-            now_angle_y = 0
-            motor.movey(2, 0)
-            motor.movex(1, i)
-            time.sleep(0.05)
-        for i in range(180, 1, -1):
-            now_angle_x = i
-            now_angle_y = 10
-            motor.movey(2, 10)
-            motor.movex(1, i)
-            time.sleep(0.05)
-        for i in range(180):
-            now_angle_x = i
-            now_angle_y = 20
-            motor.movey(2, 20)
-            motor.movex(1, i)
-            time.sleep(0.05)
-        for i in range(180, 1, -1):
-            now_angle_x = i
-            now_angle_y = 30
-            motor.movey(2, 30)
-            motor.movex(1, i)
-            time.sleep(0.05)
+        movex(angle_x) # motor.move가 movex와 movey로 나눠진 이유 -->> x는 0~180도 y는 0~90도로 제한되니까 상한하한 따로 처리하기 위해 분리함
+        movey(angle_y)
+        time.sleep(2)
+        if (turnback_flag == 1 ):
+            time.sleep(3)
+            temp = offset_flag
+            offset_flag=0
+            movex(0)
+            movey(0)
+            offset_flag=temp
+            turnback_flag = 0
+            enable = 0
 
-        time.sleep(4)
+        mode = 1 # 수동으로 입력한 각도에 도달한 이후엔 Tracking (mode=1)
+
+    def patrol(): # 전체 훑을 때 쓰는 함수
+        global mode, line, now_angle_x, now_angle_y, offset_flag, enable
+        enable = 0
+
+        temp = offset_flag
+        offset_flag = 0
+        time.sleep(0.5)
+        
+        print('\n Patrolling . . . . . ')
+
+
+
+        mode = 2      
+        for i in range(45,136): # x값은 0~180 천천히 이동하고 y값 조금씩 증가시켜서 전체 map을 훑는다
+            movey(0)
+            movex(i)
+            time.sleep(0.08)
+
+        for i in range(135,44, -1): # x값은 0~180 천천히 이동하고 y값 조금씩 증가시켜서 전체 map을 훑는다
+            movey(7)
+            movex(i)
+            time.sleep(0.08)
+
+        for i in range(45,136): # x값은 0~180 천천히 이동하고 y값 조금씩 증가시켜서 전체 map을 훑는다
+            movey(14)
+            movex(i)
+            time.sleep(0.08)
+
+        for i in range(135,44, -1): # x값은 0~180 천천히 이동하고 y값 조금씩 증가시켜서 전체 map을 훑는다
+            movey(21)
+            movex(i)
+            time.sleep(0.08)
+
+
+
+        for i in range(45,136):
+            movey(28)
+            movex(i)
+            time.sleep(0.08)
+
+        for i in range(135,44, -1):
+            movey(35)
+            movex(i)
+            time.sleep(0.08)
+
+        
+      
+        # 이렇게 motor 도는 동안 yolo모델 함수는 계속 돌고 있음 ! 
+        # 일정 각도 내로 들어오면 log.txt파일 열어서 관측결과 저장하는 중
+
+        time.sleep(.5) # 혹시 저장 덜 됐을지 모르니 좀 기다려 줌 
+        now_angle_x =motor.movex(1,90,0)
+        now_angle_y =motor.movey(2,0,0) #
+
+        offset_flag = temp
+
+
+
+
+
+        
 
         f = open('log.txt', 'r')  # Detect결과 저장된 txt파일 읽어오기
-        line = f.read()
+        line = f.read() # 다 읽어옴 
         f.close()
 
+
+        # 아래 코드는 txt파일 새로운 gui창으로 여는 코드 
         root = Tk()
         widget = Text(root)
         scrollbar = Scrollbar(root)
@@ -438,36 +657,136 @@ def gui():
         widget.config(yscrollcommand=scrollbar.set)
         widget.insert(END, line)
 
-        os.remove('log.txt')
+        os.remove('log.txt') # 다 본 후에는 지워줌 
 
-        motor.movex(1, 0)
-        motor.movey(2, 0)  # 제자리 정렬
+        
+        now_angle_x = motor.movex(1, 90,0)
+        now_angle_y = motor.movey(2, 0,0)  # 제자리 정렬
+ 
+        enable = 1 
+        mode = 1
 
-        now_angle_x = 0
-        now_angle_y = 0
+    def joystick():  # 조이스틱 제어를 위한 함수 
+        global anglex,angley,gamepad,Isstopped,before,devices,mode, motor_angle_x, motor_angle_y, now_angle_x, now_angle_y,offset_flag,joystick_flag
+        mode=3
+        enable = 0 
+        for device in devices:
+        
+                            if device.name==' USB Gamepad          ':
+                                gamepad=evdev.InputDevice(device.path)
+                                print ('Control Mode . . . . .')
+                                while True:
+                                    time.sleep(.01) # 이거 작게 줄수록 조이스틱 조작에 민감함 
+                                    event=gamepad.read_one()
+                                    if event==None and Isstopped==False:
+                                        if before!=None:
+                                            event=before
+                                            Isstopped=False
 
-        mode = 4
+                                    if event:
+                                        if event.value==1 and event.type==evdev.ecodes.EV_KEY and (event.code==295 or event.code==294): #when pressing front,upper button, mode will change for idle mode
 
-    button1 = Button(tk, text='Enter', bg='black', fg='white', width=20, command=turn).grid(row=1, column=2, rowspan=2,
-                                                                                            sticky=NS)
-    button2 = Button(tk, text='Patrol', bg='black', fg='white', width=20, command=patrol).grid(row=4, column=0,
-                                                                                               rowspan=2, sticky=S)
-    button3 = Button(tk, text='Tracking', bg='black', fg='white', width=20, command=mode1).grid(row=4, column=1,
-                                                                                                rowspan=2, sticky=S)
-    button4 = Button(tk, text='Control', bg='black', fg='white', width=20, command=turn).grid(row=4, column=2,
-                                                                                              rowspan=2, sticky=S)
+                                            mode=4
+                                            break;
+                                        if event.type == evdev.ecodes.EV_KEY:
+                                            if event.value==0:
+                                                Isstopped=True
+                                            if event.value==1: #right joystick on state
+                                                Isstopped=False
+                                                before=event
+                                                
+                                                if event.code==289 or event.code==290:
+                                                    anglex-=1
+                                                    if anglex >135 : 
+                                                        anglex = 135
+                                                    elif anglex <45 : 
+                                                        anglex = 45
+                                                    #print(anglex)
+                                                    
+                                                    if mode==3 : movex(anglex)
+                                                elif event.code==291 or event.code==288:
+                                                    anglex+=1
+                                                    if anglex >135 : 
+                                                        anglex = 135
+                                                    elif anglex <45 : 
+                                                        anglex = 45
+                                                    #print(anglex)
+                                                    if mode==3 : movex(anglex)
+                                        if event.type == 3:
+                                            if event.value==127:
+                                                #print('stop')
+                                                Isstopped=True
+                                            elif event.value!=127: #left joystick on state
+                                                Isstopped=False
+                                                before=event	
+                                                
+                                                if event.value==0:
+                                                    angley+=1
 
-    tk.mainloop()
+                                                    if angley >35 : 
+                                                        angley = 35
+                                                    elif angley <0 : 
+                                                        angley = 0
+                                                    #print(angley)
+                                                    if mode==3 : movey(angley)
+                                                elif event.value==255:
+                                                    angley-=1
+                                                    if angley >35 : 
+                                                        angley = 35
+                                                    elif angley <0 : 
+                                                        angley = 0
+                                                    #print(angley)
+                                                    if mode==3 : movey(angley)
+                                        if event.value==1 and event.type==evdev.ecodes.EV_KEY and (event.code==292 or event.code==293):
+                                            #when pressing front,under button motor will rearrange
+                                            #temp = offset_flag
+                                            #offset_flag = 0 
+                                            joystick_flag=1
+                                            time.sleep(1)
+	                                    #movex(now_angle_x - motor_angle_x) # 현재 각도에 x화소 값 차이만큼 이동
+	                                    #movey(now_angle_y + motor_angle_y) # 현재 각도에 y화소 값 차이만큼 이동 
+                                            #offset_flag = temp
+                                           
+                                            
+                                             
+                                         
+        enable = 1 
 
+
+
+
+
+    button1 = Button(tk, text='Enter', bg='black', fg='white', width=20, command=turn).grid(row=1, column=2, sticky=NS)
+    # Enter버튼 ! -> 색깔과 크기를 설정하고, 이 버튼이 눌렸을 때 어떤 함수가 실행되는가 : command = turn , 여기선 turn이란 함수 실행
+
+
+    button2 = Button(tk, text='Patrol', bg='black', fg='white', width=20, command=patrol).grid(row=4, column=0,sticky=S)
+    # Patrol 모드 버튼 ! -> 색깔과 크기를 설정하고, 이 버튼이 눌렸을 때 어떤 함수가 실행되는가 : command = patrol , 여기선 patrol이란 함수 실행
+
+
+
+    button3 = Button(tk, text='Tracking', bg='black', fg='white', width=20, command=mode1).grid(row=4, column=1,sticky=S)
+    # Traking버튼 ! -> 색깔과 크기를 설정하고, 이 버튼이 눌렸을 때 어떤 함수가 실행되는가 : command = mode1 , 여기선 mode1이란 함수 실행
+    # mode는 global 변수이니까 값을 전체 함수가 공유함 ! -> mode1이라는 함수는 mode 변수를 1로 만들어주는 함수이므로
+    # 이 버튼을 누르면 mode값이 1이 되면서 돌고있는 model 내에서의 동작도 달라지게 됨 
+    # model 함수 내에서 if문으로 mode별 동작을 다르게했었으니까
+
+
+    button4 = Button(tk, text='Control', bg='black', fg='white', width=20, command=joystick).grid(row=4, column=2, sticky=S)
+    # Control버튼 ! -> 색깔과 크기를 설정하고, 이 버튼이 눌렸을 때 어떤 함수가 실행되는가 : command = joystick , 여기선 joystick이란 함수 실행
+
+    button5 = Button(tk, text='Offset mode', bg='black', fg='white', width=20, command=offset_mode).grid(row=5, column=1, sticky=S)
+    button6 = Button(tk, text='Offset Reset', bg='black', fg='white', width=20, command=offset_mode).grid(row=5, column=2, sticky=S)
+
+    button7 = Button(tk, text='Default', bg='black', fg='white', width=20, command=default).grid(row=5, column=0, sticky=S)
+    
+    refresh()
+
+    tk.mainloop() # GUI가 계속 입력값을 다시 받을 수 있도록 Loop
+ 
 
 def main(opt):
-    global motor_angle_x, motor_angle_y, mode, user_input_x, user_input_y, flag
-    # print("******************** Mode Type ********************\n")
-    # print("For AutoMode   : Type 1 \n")
-    # print("For Patrol Mode : Type 2 \n")
-
-    # mode = int(input("Select Mode : "))
-
+    global motor_angle_x, motor_angle_y, mode, user_input_x, user_input_y
     check_requirements(exclude=('tensorboard', 'thop'))
 
 
@@ -480,4 +799,3 @@ if __name__ == "__main__":
 
     t0 = Thread(target=runn(**vars(opt)))
     t0.start()
-
