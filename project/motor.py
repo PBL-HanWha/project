@@ -25,8 +25,8 @@ def movey(id, angle,offset_y, rotation_time = 500):
     angle = angle + 90
     if angle >125 : angle = 125 # 최대 및 최소 각도 설정 (0~180으로 하면 Frame 밖의 배경이 보일까봐 제한함)
     if angle <80 : angle = 80
-    if offset_y>=1:
-        angle+=offset_y
+    
+    angle+=offset_y
     time.sleep(0.001)
     Arm.Arm_serial_servo_write(id, angle, rotation_time)
     time.sleep(0.001)
@@ -34,7 +34,7 @@ def movey(id, angle,offset_y, rotation_time = 500):
 
 # max,min_normalization_range 이건 안씀 
 def normalize_0_to_180_x(original_number, max_range = 640, min_range = 45, max_normalization_range = 135, min_normalization_range = 0):
-    normalized_num = round( (original_number-320)/31)
+    normalized_num = round( (original_number-320)/33)
     # when camera moves 2 degrees, almost 31px moving
     
     return normalized_num
@@ -43,7 +43,7 @@ def normalize_0_to_180_x(original_number, max_range = 640, min_range = 45, max_n
     
 # max,min_normalization_range 이건 안씀 
 def normalize_0_to_180_y(original_number, max_range = 480, min_range = 0, max_normalization_range = 35, min_normalization_range = 0):
-    normalized_num = round( (original_number-240)/22 )
+    normalized_num = round( (original_number-240)/32 )
     # when camera moves 2 degrees, almost 22px moving 
 
     return normalized_num
