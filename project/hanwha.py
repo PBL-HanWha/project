@@ -32,7 +32,7 @@ import evdev
 import datetime
 from tkinter import *
 from multiprocessing import Process
-from threading import Threadgit
+from threading import Thread
 import time
 import cv2
 import argparse
@@ -63,7 +63,12 @@ angle_y = 0
 motor_angle_x = 0
 motor_angle_y = 0
 
-mode = 4
+mode = 0
+
+chain = 0
+
+center_x = 0
+center_y = 0
 
 user_input_x = 0
 user_input_y = 0 
@@ -75,8 +80,8 @@ now_angle_y = 0  # 현재의 x각도 값을 계속 갱신
 
 count=0
 
-x_ok = 0
-y_ok = 0
+ok = 0
+
 
 ## For 조이스틱 
 anglex=0
@@ -156,7 +161,7 @@ def runn(
         dnn=False,  # use OpenCV DNN for ONNX inference
         vid_stride=1,  # video frame-rate stride
 ):
-    global motor_angle_x, motor_angle_y, mode, angle_x, angle_y, line,  now_angle_x, now_angle_y,count,offset_x,offset_y,turnback_flag,offset_flag, joystick_flag, enable, x_ok, y_ok
+    global motor_angle_x, motor_angle_y, mode, angle_x, angle_y, line,  now_angle_x, now_angle_y,count,offset_x,offset_y,turnback_flag,offset_flag, joystick_flag, enable,ok, center_x , center_y
 
     movex(0)
     movey(0)  # 초기 정렬
@@ -247,7 +252,7 @@ def runn(
 
                     # -(y-480)하는 이유 : 코드로직상 좌측 상단이 (0,0) 우측 하단이 (640,480)임 
                
-                    cv2.circle(320,240, 5)                
+                    cv2.circle(im0,(320,240), 5,(0,255,0), 50)                
 
 
                     if now_angle_x > 180 : now_angle_x = 180
@@ -284,11 +289,11 @@ def runn(
                     motor_angle_x = motor.normalize_0_to_180_x(center_x)*2
                     motor_angle_y = motor.normalize_0_to_180_y(center_y)*2 # 이 화소값을 기반으로 angle값으로 변환
                     
-                    if(enable==1):
-                        print ('-------------------------')
-                        print ("Offset_x : ", -motor_angle_x )
-                        print ("Offset_y : ", motor_angle_y )
-                        print ('-------------------------')
+                    #if(enable==1):
+                    #    print ('-------------------------')
+                    #    print ("Offset_x : ", -motor_angle_x )
+                    #    print ("Offset_y : ", motor_angle_y )
+                    #    print ('-------------------------')
  
 
                     #if (mode == 0):  # mode = 0 만든 이유 -> 수동각도 입력 시 돌아가는 도중에 다른걸 추적하지 않기 위해
@@ -315,20 +320,28 @@ def runn(
                     #print ('now_angle_x:', now_angle_x)
                     #print ('now_angle_y:', now_angle_y)    
 
-                    if ((offset_flag==0) and (abs(center_x - 320) < 40 and abs(center_y - 240) < 40) and (abs(angle_x-now_angle_x)<5) and (abs(angle_y-now_angle_y)<5)): # 일정 각도 내에 Detect될 경우			
-                        #time.sleep(5) # 5초 가만히 있다가
-                        print('Arrange Complete')
+                    if ((abs(center_x - 320) < 20 and abs(center_y - 240) < 20) and (mode==7)):
+                        
                         turnback_flag = 1
-                        x_ok = 1
-                        y_ok = 1
+                        ok=1
+
+
+
+
+                    if ((mode==6) and (offset_flag==0) and (abs(center_x - 320) < 20 and abs(center_y - 240) < 20) and (abs(angle_x-now_angle_x)<5) and (abs(angle_y-now_angle_y)<5)): # 일정 각도 내에 Detect될 경우			
+                        #time.sleep(5) # 5초 가만히 있다가
+                        
+                        turnback_flag = 1
                     
-                    if ((offset_flag==1) and (abs(center_x - 320) < 40 and abs(center_y - 240) < 40) and (abs(angle_x + offset_x -now_angle_x)<5) and (abs(angle_y + offset_y -now_angle_y)<5)): # 일정 각도 내에 Detect될 경우			
+                        ok=1                      
+                    
+                    if ((mode==6) and(offset_flag==1) and (abs(center_x - 320) < 20 and abs(center_y - 240) < 20) and (abs(angle_x + offset_x -now_angle_x)<5) and (abs(angle_y + offset_y -now_angle_y)<5)): # 일정 각도 내에 Detect될 경우			
 
                         #time.sleep(5) # 5초 가만히 있다가
-                        print('Arrange Complete')
+                        
                         turnback_flag = 1        
-                        x_ok = 1
-                        y_ok = 1                
+                        ok=1       
+
                                              ###############################################################################################################
 
                     #if (mode == 2): #전체 훑는 모드 --> for문 써야하는데 여기에 for문 넣으니까 yolo가 멈춰서 
@@ -460,7 +473,7 @@ def parse_opt():
 
 def gui():
     global mode, angle_x, angle_y, line,  now_angle_x , now_angle_y, anglex,angley
-    global gamepad,Isstopped,before,devices,turnback_flag, motor_angle_x, motor_angle_y
+    global gamepad,Isstopped,before,devices,turnback_flag, motor_angle_x, motor_angle_y , ok
     def refresh():
         global motor_angle_x, motor_angle_y
         o = 'OFFSET: (' + str(-motor_angle_x)+ ' , ' + str(motor_angle_y) + ')'
@@ -496,11 +509,10 @@ def gui():
 
     def default():
         global now_angle_x, now_angle_y, offset_flag
-        temp = offset_flag
-        offset_flag = 0
-        movex(0)
-        movey(0)
-        offset_flag= temp
+        
+        now_angle_x = motor.movex(1,0,0)
+        now_angle_y = motor.movey(1,0,0)
+        
 
     def offset_reset():
         global offset_x, offset_y
@@ -518,11 +530,14 @@ def gui():
             offset_flag = 0
             print("******Offset Correction OFF******\n")
 
-    def mode1():
-        global mode, motor_angle_x, motor_angle_y, now_angle_x, now_angle_y, offset_x, offset_y, turnback_flag,offset_flag,x_ok,y_ok
-        mode = 1
+    def tracking():
+        global mode, motor_angle_x, motor_angle_y, now_angle_x, now_angle_y, offset_x, offset_y, turnback_flag,offset_flag,ok
+        
+        print('tracking button !! ')
+        mode = 7
         enable = 1 
-        while (x_ok + y_ok != 2 ):
+        while (ok != 1):
+            print(ok)        
             print('Tracking . . . .  \n')
             movex(now_angle_x - motor_angle_x) # 현재 각도에 x화소 값 차이만큼 이동
             movey(now_angle_y + motor_angle_y) # 현재 각도에 y화소 값 차이만큼 이동 
@@ -532,21 +547,10 @@ def gui():
                         #  모터가 0도일때 오른쪽을 보고 180도일때 왼쪽을 봐서 서로 반대임
             offset_x += (-motor_angle_x)
             offset_y += (motor_angle_y)
-        
-
-        x_ok = 0 
-        y_ok = 0
-        
-        #print('offset_x : ',offset_x)
-        #print('offset_y : ',offset_y)
-        #print('\n')
-
-        #print('offset_y:  ')
-        #print(offset_y)
-        # now_angle_x = now_angle_x - motor_angle_x #
-        # now_angle_y = now_angle_y + motor_angle_y # 돌아간 이후에 현재 각도 값을 갱신
-        time.sleep(2)
+            time.sleep(3)
+            
         if (turnback_flag == 1 ):
+            print('Arrange Complete')
             time.sleep(3)
             temp = offset_flag
             offset_flag=0
@@ -555,10 +559,101 @@ def gui():
             offset_flag=temp
             turnback_flag = 0
             enable = 0 
+            ok = 0
+
+    def track():  
+        global mode, motor_angle_x, motor_angle_y, now_angle_x, now_angle_y, offset_x,offset_y,turnback_flag,offset_flag,ok
+        print('Tracking . . . .  \n')
+        movex(now_angle_x - motor_angle_x) # 현재 각도에 x화소 값 차이만큼 이동
+        movey(now_angle_y + motor_angle_y) # 현재 각도에 y화소 값 차이만큼 이동 
+
+                        #  now_x - motor_x 여기만 뺄셈인 이유는 모터 회전방향 때문임 
+                        #  x화소는 좌측에서 우측으로 갈 수록 증가하지만
+                        #  모터가 0도일때 오른쪽을 보고 180도일때 왼쪽을 봐서 서로 반대임
+        offset_x += (-motor_angle_x)
+        offset_y += (motor_angle_y)
+        time.sleep(3)
+    
+    def tracking1():
+        global mode, motor_angle_x, motor_angle_y, now_angle_x, now_angle_y, offset_x, offset_y, turnback_flag,offset_flag,ok,chain
+        
+        mode = 7
+        enable = 1 
+        temp = offset_flag
+        offset_flag = 0
+        track()
+            
+        if (ok ==1 )and (turnback_flag == 1 ):
+            print('Arrange Complete')
+            time.sleep(3)
+            now_angle_x =motor.movex(1,0,0)
+            now_angle_y =motor.movey(2,0,0) #
+            turnback_flag = 0
+            enable = 0 
+            ok = 0
+            chain = 1
+        
+
+        if (chain == 0) :  track()
+            
+        if (ok ==1 )and (turnback_flag == 1 ):
+            print('Arrange Complete')
+            time.sleep(3)
+            now_angle_x =motor.movex(1,0,0)
+            now_angle_y =motor.movey(2,0,0) #
+            turnback_flag = 0
+            enable = 0 
+            ok = 0
+            chain = 1
+
+        if (chain == 0) :  track()
+
+        print('Tracking . . . .  \n')
+
+            
+        if (ok ==1 )and (turnback_flag == 1 ):
+            print('Arrange Complete')
+            time.sleep(3)
+            now_angle_x =motor.movex(1,0,0)
+            now_angle_y =motor.movey(2,0,0) #
+            turnback_flag = 0
+            enable = 0 
+            ok = 0
+            chain = 1
+        if (chain == 0) :  track()
+            
+        if (ok ==1 )and (turnback_flag == 1 ):
+            print('Arrange Complete')
+            time.sleep(3)
+            now_angle_x =motor.movex(1,0,0)
+            now_angle_y =motor.movey(2,0,0) #
+            turnback_flag = 0
+            enable = 0 
+            ok = 0
+            chain = 1
+
+        if (chain == 0) :  track()
+
+        if (ok ==1 )and (turnback_flag == 1 ):
+            print('Arrange Complete')
+            time.sleep(3)
+            now_angle_x =motor.movex(1,0,0)
+            now_angle_y =motor.movey(2,0,0) #
+            turnback_flag = 0
+            enable = 0 
+            ok = 0
+            chain = 1
+     
+
+        chain = 0 
+        offset_flag=temp
+
 
     def turn(): #수동으로 회전할 때 쓰는 함수 
         global mode, angle_x, angle_y, now_angle_x, now_angle_y , offset_x, offset_y , motor_angle_x, motor_angle_y, turnback_flag,offset_flag
-        enable = 1 
+        enable = 1
+        mode = 6
+        turnback_flag = 0
         
        
         angle_x = int(entry1.get()) # 빈칸으로 받은 값 int 저장
@@ -570,11 +665,8 @@ def gui():
         time.sleep(2)
         if (turnback_flag == 1 ):
             time.sleep(3)
-            temp = offset_flag
-            offset_flag=0
-            movex(0)
-            movey(0)
-            offset_flag=temp
+            now_angle_x =motor.movex(1,0,0)
+            now_angle_y =motor.movey(2,0,0)
             turnback_flag = 0
             enable = 0
 
@@ -631,7 +723,7 @@ def gui():
         # 일정 각도 내로 들어오면 log.txt파일 열어서 관측결과 저장하는 중
 
         time.sleep(.5) # 혹시 저장 덜 됐을지 모르니 좀 기다려 줌 
-        now_angle_x =motor.movex(1,90,0)
+        now_angle_x =motor.movex(1,0,0)
         now_angle_y =motor.movey(2,0,0) #
 
         offset_flag = temp
@@ -765,7 +857,7 @@ def gui():
 
 
 
-    button3 = Button(tk, text='Tracking', bg='black', fg='white', width=20, command=mode1).grid(row=4, column=1,sticky=S)
+    button3 = Button(tk, text='Tracking', bg='black', fg='white', width=20, command=tracking1).grid(row=4, column=1,sticky=S)
     # Traking버튼 ! -> 색깔과 크기를 설정하고, 이 버튼이 눌렸을 때 어떤 함수가 실행되는가 : command = mode1 , 여기선 mode1이란 함수 실행
     # mode는 global 변수이니까 값을 전체 함수가 공유함 ! -> mode1이라는 함수는 mode 변수를 1로 만들어주는 함수이므로
     # 이 버튼을 누르면 mode값이 1이 되면서 돌고있는 model 내에서의 동작도 달라지게 됨 
@@ -776,12 +868,11 @@ def gui():
     # Control버튼 ! -> 색깔과 크기를 설정하고, 이 버튼이 눌렸을 때 어떤 함수가 실행되는가 : command = joystick , 여기선 joystick이란 함수 실행
 
     button5 = Button(tk, text='Offset mode', bg='black', fg='white', width=20, command=offset_mode).grid(row=5, column=1, sticky=S)
-    button6 = Button(tk, text='Offset Reset', bg='black', fg='white', width=20, command=offset_mode).grid(row=5, column=2, sticky=S)
+    button6 = Button(tk, text='Offset Reset', bg='black', fg='white', width=20, command=offset_reset).grid(row=5, column=2, sticky=S)
 
     button7 = Button(tk, text='Default', bg='black', fg='white', width=20, command=default).grid(row=5, column=0, sticky=S)
     
     refresh()
-
     tk.mainloop() # GUI가 계속 입력값을 다시 받을 수 있도록 Loop
  
 
