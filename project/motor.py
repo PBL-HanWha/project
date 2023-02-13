@@ -7,20 +7,17 @@ import time
 from Arm_Lib import Arm_Device
 Arm = Arm_Device()
 def movex(id, angle, offset_x,rotation_time = 500):
-    # id가 1,2,3,4,6 일 때 가능
-    # id가 5일 경우 동작범위가 0 ~ 270 까지 이므로, normalize_0_to_180의 max_normalization_range를 270으로 설정해야됨
-    if angle >180 : angle = 180    # 최대 및 최소 각도 설정 (0~180으로 하면 Frame 밖의 배경이 보일까봐 제한함)
+    # id가 1,2 일 때 가능
+    if angle >180 : angle = 180    # 최대 및 최소 각도 설정 (서보모터 자체 제한)
     if angle <0 : angle = 0
-    if offset_x>=1:
-        angle+=offset_x
+    angle+=offset_x
     time.sleep(0.001)
     Arm.Arm_serial_servo_write(id, angle, rotation_time)
     time.sleep(0.001)
     return angle
 
 def movey(id, angle,offset_y, rotation_time = 500):
-    # id가 1,2,3,4,6 일 때 가능
-    # id가 5일 경우 동작범위가 0 ~ 270 까지 이므로, normalize_0_to_180의 max_normalization_range를 270으로 설정해야됨
+    # id가 1,2일 때 가능
 
     angle = angle + 90
     if angle >125 : angle = 125 # 최대 및 최소 각도 설정 (0~180으로 하면 Frame 밖의 배경이 보일까봐 제한함)
