@@ -29,7 +29,6 @@ def movey(id, angle,offset_y, rotation_time = 500):
     time.sleep(0.001)
     return angle-90
 
-# max,min_normalization_range 이건 안씀 
 def normalize_0_to_180_x(original_number, max_range = 640, min_range = 45, max_normalization_range = 135, min_normalization_range = 0):
     normalized_num = round( (original_number-320)/33)
     # when camera moves 2 degrees, almost 31px moving
@@ -38,7 +37,6 @@ def normalize_0_to_180_x(original_number, max_range = 640, min_range = 45, max_n
 
 
     
-# max,min_normalization_range 이건 안씀 
 def normalize_0_to_180_y(original_number, max_range = 480, min_range = 0, max_normalization_range = 35, min_normalization_range = 0):
     normalized_num = round( (original_number-240)/32 )
     # when camera moves 2 degrees, almost 22px moving 
